@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import {
   Eye, TrendingUp, Share2, Target, Flame, Repeat, Trophy, ExternalLink, ArrowRight, Filter, BookmarkPlus,
+  X, CalendarDays, Copy, Layers, Quote,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { cn, formatNumber, formatPercent, formatDate } from '@/lib/utils';
@@ -42,8 +43,11 @@ export default function Analytics() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [rankTab, setRankTab] = useState<RankTab>('views');
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
-  const { articles, accounts, groups, addMaterial } = useAppStore();
+  const { articles, accounts, groups, users, materialPackages, addMaterial, materials } = useAppStore();
+  const lastCreatedMaterialIdsRef = useRef<string[]>([]);
 
   const publishedArticles = useMemo(
     () => articles.filter((a) => a.status === 'published' || a.status === 'archived'),
@@ -98,16 +102,20 @@ export default function Analytics() {
     return sorted.slice(0, 10);
   }, [filteredArticles, rankTab]);
 
-  const barChartData = useMemo(() => {
+  const topBarArticles = useMemo(() => {
     return [...filteredArticles]
       .sort((a, b) => (b.views || 0) - (a.views || 0))
-      .slice(0, 6)
-      .map((article) => ({
-        name: article.title.length > 6 ? article.title.substring(0, 6) + '...' : article.title,
-        阅读量: article.views || 0,
-        转化数: article.conversions || 0,
-      }));
+      .slice(0, 6);
   }, [filteredArticles]);
+
+  const barChartData = useMemo(() => {
+    return topBarArticles.map((article) => ({
+      id: article.id,
+      name: article.title.length > 6 ? article.title.substring(0, 6) + '...' : article.title,
+      阅读量: article.views || 0,
+      转化数: article.conversions || 0,
+    }));
+  }, [topBarArticles]);
 
   const radarChartData = useMemo(() => {
     const dimensions = ['阅读量', '互动率', '分享率', '转化率', '涨粉数'];
@@ -182,10 +190,44 @@ export default function Analytics() {
       .slice(0, 8);
   }, [filteredArticles]);
 
+  const selectedArticle = useMemo(() => {
+    if (!selectedArticleId) return null;
+    return articles.find((a) => a.id === selectedArticleId) || null;
+  }, [selectedArticleId, articles]);
+
   const getAccountById = useCallback(
     (id: string) => accounts.find((a) => a.id === id),
     [accounts]
   );
+
+  const getGroupById = useCallback(
+    (id: string) => groups.find((g) => g.id === id),
+    [groups]
+  );
+
+  const getUserById = useCallback(
+    (id: string) => users.find((u) => u.id === id),
+    [users]
+  );
+
+  const getRelatedPackages = useCallback(
+    (accountId: string, category: string) => {
+      return materialPackages.filter(
+        (pkg) => pkg.accountId === accountId && pkg.category === category
+      );
+    },
+    [materialPackages]
+  );
+
+  const openArticleDrawer = useCallback((articleId: string) => {
+    setSelectedArticleId(articleId);
+    setDrawerOpen(true);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    setTimeout(() => setSelectedArticleId(null), 300);
+  }, []);
 
   const getRankValue = (article: typeof filteredArticles[0]) => {
     switch (rankTab) {
@@ -206,27 +248,69 @@ export default function Analytics() {
     setTimeout(() => setToast({ message: '', visible: false }), 2000);
   }, []);
 
-  const handleDepositToMaterial = useCallback(
+  const handleCopyQuote = useCallback((quote: string) => {
+    navigator.clipboard.writeText(quote).then(() => {
+      showToast('金句已复制到剪贴板');
+    }).catch(() => {
+      showToast('复制失败，请手动复制');
+    });
+  }, [showToast]);
+
+  const handleDepositSingleQuote = useCallback(
+    (quote: string, article: typeof filteredArticles[0]) => {
+      const account = getAccountById(article.accountId);
+      const createdIds: string[] = [];
+      const newId = `mat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      createdIds.push(newId);
+      lastCreatedMaterialIdsRef.current = createdIds;
+      addMaterial({
+        type: 'quote',
+        title: quote.length > 20 ? quote.substring(0, 20) + '...' : quote,
+        content: quote,
+        tags: article.tags || [],
+        source: article.title,
+        author: account?.name,
+      });
+      showToast('金句已沉淀到素材库');
+    },
+    [addMaterial, getAccountById, showToast]
+  );
+
+  const handleDepositAllQuotes = useCallback(
     (article: typeof filteredArticles[0]) => {
       const quotes = article.goldenQuotes || [];
       if (quotes.length === 0) {
         showToast('该文章暂无金句可沉淀');
         return;
       }
-      quotes.forEach((quote) => {
+      const account = getAccountById(article.accountId);
+      const createdIds: string[] = [];
+      quotes.forEach((quote, idx) => {
+        const newId = `mat-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`;
+        createdIds.push(newId);
         addMaterial({
           type: 'quote',
-          title: quote,
+          title: quote.length > 20 ? quote.substring(0, 20) + '...' : quote,
           content: quote,
-          tags: [],
+          tags: article.tags || [],
           source: article.title,
-          author: getAccountById(article.accountId)?.name,
+          author: account?.name,
         });
       });
+      lastCreatedMaterialIdsRef.current = createdIds;
       showToast(`已沉淀 ${quotes.length} 条金句到素材库`);
     },
     [addMaterial, getAccountById, showToast]
   );
+
+  const handleGoToMaterials = useCallback(() => {
+    const lastIds = lastCreatedMaterialIdsRef.current;
+    if (lastIds.length > 0) {
+      navigate('/materials', { state: { highlightId: lastIds[lastIds.length - 1] } });
+    } else {
+      navigate('/materials');
+    }
+  }, [navigate]);
 
   const maxRankValue = rankData.length > 0 ? getRankValue(rankData[0]) : 1;
 
@@ -401,9 +485,10 @@ export default function Analytics() {
             return (
               <div
                 key={article.id}
+                onClick={() => openArticleDrawer(article.id)}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors',
-                  idx < 3 ? 'bg-copper-50/60' : 'hover:bg-ink-50'
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer hover:bg-brand-50',
+                  idx < 3 ? 'bg-copper-50/60 hover:bg-copper-50' : 'hover:bg-ink-50'
                 )}
               >
                 <span
@@ -495,12 +580,24 @@ export default function Analytics() {
                   fill={BRAND_COLORS.primary}
                   radius={[4, 4, 0, 0]}
                   maxBarSize={32}
+                  onClick={(data) => {
+                    if (data && (data as any).id) {
+                      openArticleDrawer((data as any).id as string);
+                    }
+                  }}
+                  cursor="pointer"
                 />
                 <Bar
                   dataKey="转化数"
                   fill={BRAND_COLORS.copper}
                   radius={[4, 4, 0, 0]}
                   maxBarSize={32}
+                  onClick={(data) => {
+                    if (data && (data as any).id) {
+                      openArticleDrawer((data as any).id as string);
+                    }
+                  }}
+                  cursor="pointer"
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -674,7 +771,10 @@ export default function Analytics() {
                     />
                   </div>
 
-                  <h4 className="font-serif text-base font-semibold text-ink-900 line-clamp-2 leading-snug mb-2">
+                  <h4
+                    onClick={() => openArticleDrawer(article.id)}
+                    className="font-serif text-base font-semibold text-ink-900 line-clamp-2 leading-snug mb-2 cursor-pointer hover:text-brand-700 transition-colors"
+                  >
                     {article.title}
                   </h4>
 
@@ -721,7 +821,7 @@ export default function Analytics() {
                         复用内容
                       </button>
                       <button
-                        onClick={() => handleDepositToMaterial(article)}
+                        onClick={() => handleDepositAllQuotes(article)}
                         className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-copper-700 bg-copper-50 hover:bg-copper-100 rounded-lg transition-all duration-200"
                       >
                         <BookmarkPlus className="w-3.5 h-3.5" />
@@ -736,8 +836,198 @@ export default function Analytics() {
         </div>
       </div>
 
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className="flex-1 bg-ink-900/40 backdrop-blur-sm animate-fade-in"
+            onClick={closeDrawer}
+          />
+          <div className="w-96 h-full bg-white shadow-2xl animate-slide-in-from-right flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-ink-100">
+              <h2 className="font-serif text-lg font-semibold text-ink-900">文章复盘</h2>
+              <button
+                onClick={closeDrawer}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-ink-500 hover:text-ink-700 hover:bg-ink-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              {selectedArticle && (
+                <>
+                  <div>
+                    <h1 className="font-serif text-xl font-bold text-ink-900 leading-snug">
+                      {selectedArticle.title}
+                    </h1>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-ink-600 font-medium">
+                        {getAccountById(selectedArticle.accountId)?.name || '未知账号'}
+                      </span>
+                      {getAccountById(selectedArticle.accountId) && (
+                        <Badge variant="copper">
+                          {getGroupById(getAccountById(selectedArticle.accountId)!.groupId)?.name || '未分组'}
+                        </Badge>
+                      )}
+                      <Badge variant="brand">{selectedArticle.category}</Badge>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-ink-500">
+                      <CalendarDays className="w-4 h-4" />
+                      <span>{selectedArticle.publishDate || '未发布'}</span>
+                    </div>
+
+                    {selectedArticle.assignee && getUserById(selectedArticle.assignee) && (
+                      <div className="flex items-center gap-2">
+                        <Avatar
+                          src={getUserById(selectedArticle.assignee)!.avatar}
+                          size="sm"
+                          emoji="👤"
+                        />
+                        <span className="text-sm text-ink-600">
+                          {getUserById(selectedArticle.assignee)!.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-xl bg-gradient-to-br from-copper-50 to-white border border-copper-100">
+                      <div className="text-xs text-ink-500 mb-1">阅读量</div>
+                      <div className="font-serif text-2xl font-bold text-copper-700">
+                        {formatNumber(selectedArticle.views || 0)}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-ink-50 border border-ink-100">
+                      <div className="text-xs text-ink-500 mb-1">分享数</div>
+                      <div className="font-serif text-2xl font-bold text-ink-800">
+                        {formatNumber(selectedArticle.shares || 0)}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-ink-50 border border-ink-100">
+                      <div className="text-xs text-ink-500 mb-1">转化数</div>
+                      <div className="font-serif text-2xl font-bold text-ink-800">
+                        {formatNumber(selectedArticle.conversions || 0)}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-ink-50 border border-ink-100">
+                      <div className="text-xs text-ink-500 mb-1">打开率</div>
+                      <div className="font-serif text-2xl font-bold text-ink-800">
+                        {(selectedArticle.views || 0) > 0
+                          ? formatPercent((selectedArticle.likes || 0) / (selectedArticle.views || 0) / 10)
+                          : '0%'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Quote className="w-4 h-4 text-copper-600" />
+                      <h3 className="font-serif text-base font-semibold text-ink-800">文章金句</h3>
+                    </div>
+                    {(selectedArticle.goldenQuotes?.length || 0) > 0 ? (
+                      <div className="space-y-3">
+                        {selectedArticle.goldenQuotes!.map((quote, idx) => (
+                          <div
+                            key={idx}
+                            className="p-4 rounded-xl bg-gradient-to-br from-white to-copper-50/30 border border-copper-100"
+                          >
+                            <div className="flex items-start gap-2 mb-3">
+                              <Quote className="w-4 h-4 text-copper-500 shrink-0 mt-0.5" />
+                              <p className="text-sm text-ink-700 leading-relaxed">{quote}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDepositSingleQuote(quote, selectedArticle)}
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-copper-700 bg-copper-100 hover:bg-copper-200 rounded-lg transition-colors"
+                              >
+                                <BookmarkPlus className="w-3.5 h-3.5" />
+                                沉淀为素材
+                              </button>
+                              <button
+                                onClick={() => handleCopyQuote(quote)}
+                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                                复制
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 rounded-xl bg-ink-50 text-center text-sm text-ink-400">
+                        该文章暂无金句
+                      </div>
+                    )}
+                  </div>
+
+                  {getRelatedPackages(selectedArticle.accountId, selectedArticle.category).length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Layers className="w-4 h-4 text-brand-600" />
+                        <h3 className="font-serif text-base font-semibold text-ink-800">关联素材包</h3>
+                      </div>
+                      <div className="space-y-2">
+                        {getRelatedPackages(selectedArticle.accountId, selectedArticle.category).map((pkg) => (
+                          <div
+                            key={pkg.id}
+                            className="flex items-center justify-between p-3 rounded-xl bg-brand-50/50 border border-brand-100"
+                          >
+                            <div>
+                              <div className="text-sm font-medium text-ink-800">{pkg.name}</div>
+                              <div className="text-xs text-ink-500 mt-0.5">
+                                {pkg.materialIds.length} 个素材
+                              </div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-ink-400" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 px-5 py-4 border-t border-ink-100 bg-white space-y-2">
+              {selectedArticle && (
+                <>
+                  <button
+                    onClick={() => navigate('/draft', { state: { articleId: selectedArticle.id } })}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-700 text-white font-medium rounded-lg transition-all duration-200 hover:bg-brand-800 active:bg-brand-900"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    跳转查看
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleDepositAllQuotes(selectedArticle)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-copper-700 bg-copper-50 hover:bg-copper-100 rounded-lg transition-colors"
+                    >
+                      <BookmarkPlus className="w-4 h-4" />
+                      沉淀全部金句
+                    </button>
+                    <button
+                      onClick={handleGoToMaterials}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+                    >
+                      <Layers className="w-4 h-4" />
+                      查看素材
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast.visible && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 bg-ink-800 text-white text-sm rounded-lg shadow-lg animate-slide-up z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 bg-ink-800 text-white text-sm rounded-lg shadow-lg animate-slide-up z-[60]">
           {toast.message}
         </div>
       )}

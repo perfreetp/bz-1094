@@ -65,8 +65,8 @@ export default function Kanban() {
     return account?.name || '未关联';
   };
 
-  const getUser = (userName: string) => {
-    return users.find((u) => u.name === userName);
+  const getUser = (userId: string) => {
+    return users.find((u) => u.id === userId);
   };
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -144,7 +144,7 @@ export default function Kanban() {
             >
               <option value="all">全部负责人</option>
               {users.map((user) => (
-                <option key={user.id} value={user.name}>
+                <option key={user.id} value={user.id}>
                   {user.name}
                 </option>
               ))}
@@ -190,7 +190,6 @@ export default function Kanban() {
 
               <div className="flex-1 space-y-3 min-h-[400px]">
                 {columnTasks.map((task, index) => {
-                  const user = getUser(task.assignee);
                   return (
                     <Card
                       key={task.id}
@@ -219,11 +218,11 @@ export default function Kanban() {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-1.5">
                           <Avatar
-                            emoji={user?.avatar}
-                            alt={task.assignee}
+                            emoji={getUser(task.assignee)?.avatar}
+                            alt={getUser(task.assignee)?.name || task.assignee}
                             size="sm"
                           />
-                          <span className="text-xs text-ink-600">{task.assignee}</span>
+                          <span className="text-xs text-ink-600">{getUser(task.assignee)?.name || task.assignee}</span>
                         </div>
                         <div className="flex items-center gap-1 text-xs text-ink-500">
                           <CalendarDays className="w-3.5 h-3.5" />

@@ -83,6 +83,17 @@ export interface Material {
   author?: string;
 }
 
+export interface MaterialPackage {
+  id: string;
+  name: string;
+  materialIds: string[];
+  accountId?: string;
+  category?: string;
+  createdAt: string;
+  createdBy: string;
+  description?: string;
+}
+
 export interface Tag {
   id: string;
   name: string;
@@ -123,3 +134,4 @@ export interface User {
 }
 
 export type MaterialType = 'image' | 'copy' | 'quote' | 'competitor';
+

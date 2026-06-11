@@ -10,6 +10,7 @@ import type {
   PublishRecord,
   User,
   MaterialType,
+  MaterialPackage,
 } from '../types';
 import {
   accounts,
@@ -31,6 +32,7 @@ interface AppState {
   articles: Article[];
   tasks: Task[];
   materials: Material[];
+  materialPackages: MaterialPackage[];
   tags: Tag[];
   selectedMaterialType: MaterialType | 'all';
   reviewComments: ReviewComment[];
@@ -50,6 +52,10 @@ interface AppState {
   updateArticleContent: (articleId: string, content: string) => void;
   toggleMaterialTag: (materialId: string, tagId: string) => void;
   addMaterial: (material: Omit<Material, 'id' | 'createdAt'>) => void;
+  createMaterialPackage: (pkg: Omit<MaterialPackage, 'id' | 'createdAt'>) => void;
+  addMaterialsToPackage: (packageId: string, materialIds: string[]) => void;
+  removeMaterialsFromPackage: (packageId: string, materialIds: string[]) => void;
+  deleteMaterialPackage: (packageId: string) => void;
 }
 
 const statusProgressMap: Record<string, number> = {
@@ -62,6 +68,38 @@ const statusProgressMap: Record<string, number> = {
   archived: 100,
 };
 
+const taskStatusToArticleStatus: Record<string, Article['status']> = {
+  todo: 'draft',
+  writing: 'writing',
+  review: 'review',
+  scheduled: 'scheduled',
+  published: 'published',
+  archived: 'archived',
+};
+
+const samplePackages: MaterialPackage[] = [
+  {
+    id: 'pkg-1',
+    name: '618 大促素材包',
+    materialIds: ['mat-1', 'mat-2', 'mat-5', 'mat-13'],
+    accountId: 'acc-1',
+    category: '产品评测',
+    createdAt: '2026-06-01',
+    createdBy: 'u1',
+    description: '618 活动期间的核心素材合集',
+  },
+  {
+    id: 'pkg-2',
+    name: '夏日护肤专题',
+    materialIds: ['mat-10', 'mat-14', 'mat-15'],
+    accountId: 'acc-5',
+    category: '护肤教程',
+    createdAt: '2026-06-05',
+    createdBy: 'u2',
+    description: '油皮、干皮夏季护肤素材',
+  },
+];
+
 export const useAppStore = create<AppState>((set) => ({
   accounts,
   groups,
@@ -69,6 +107,7 @@ export const useAppStore = create<AppState>((set) => ({
   articles,
   tasks,
   materials,
+  materialPackages: samplePackages,
   tags,
   selectedMaterialType: 'all',
   reviewComments,
@@ -80,38 +119,44 @@ export const useAppStore = create<AppState>((set) => ({
 
   updateTaskStatus: (taskId, status) =>
     set((state) => {
-      const updatedTasks = state.tasks.map((task) =>
-        task.id === taskId ? { ...task, status, progress: statusProgressMap[status] ?? task.progress ?? 0 } : task
-      );
       const task = state.tasks.find((t) => t.id === taskId);
-      const updatedArticles = task
-        ? state.articles.map((article) =>
-            article.id === task.articleId ? { ...article, status: status as Article['status'] } : article
-          )
-        : state.articles;
+      if (!task) return state;
+
+      const updatedTasks = state.tasks.map((t) =>
+        t.id === taskId ? { ...t, status, progress: statusProgressMap[status] ?? t.progress ?? 0 } : t
+      );
+
+      const articleStatus = (taskStatusToArticleStatus[status] || task.status) as Article['status'];
+      const updatedArticles = state.articles.map((a) =>
+        a.id === task.articleId
+          ? {
+              ...a,
+              status: articleStatus,
+              assignee: a.assignee ?? task.assignee,
+            }
+          : a
+      );
+
       return { tasks: updatedTasks, articles: updatedArticles };
     }),
 
   claimArticle: (articleId, userId) =>
     set((state) => {
-      const user = state.users.find((u) => u.id === userId);
-      const userName = user?.name || userId;
-      return {
-        articles: state.articles.map((article) =>
-          article.id === articleId ? { ...article, assignee: userName, status: 'writing' } : article
-        ),
-        tasks: state.tasks.map((task) =>
-          task.articleId === articleId ? { ...task, assignee: userName, status: 'writing' as const, progress: 50 } : task
-        ),
-      };
+      const updatedArticles = state.articles.map((a) =>
+        a.id === articleId ? { ...a, assignee: userId, status: 'writing' as const } : a
+      );
+      const updatedTasks = state.tasks.map((t) =>
+        t.articleId === articleId ? { ...t, assignee: userId, status: 'writing' as const, progress: 50 } : t
+      );
+      return { articles: updatedArticles, tasks: updatedTasks };
     }),
 
   addMaterialTag: (materialId, tagId) =>
     set((state) => ({
-      materials: state.materials.map((material) =>
-        material.id === materialId && !material.tags.includes(tagId)
-          ? { ...material, tags: [...material.tags, tagId] }
-          : material
+      materials: state.materials.map((m) =>
+        m.id === materialId && !m.tags.includes(tagId)
+          ? { ...m, tags: [...m.tags, tagId] }
+          : m
       ),
     })),
 
@@ -130,10 +175,10 @@ export const useAppStore = create<AppState>((set) => ({
   resolveComment: (commentId) =>
     set((state) => {
       const resolveReplies = (comments: ReviewComment[]): ReviewComment[] =>
-        comments.map((comment) => ({
-          ...comment,
-          ...(comment.id === commentId ? { resolved: true } : {}),
-          replies: comment.replies ? resolveReplies(comment.replies) : undefined,
+        comments.map((c) => ({
+          ...c,
+          ...(c.id === commentId ? { resolved: true } : {}),
+          replies: c.replies ? resolveReplies(c.replies) : undefined,
         }));
       return { reviewComments: resolveReplies(state.reviewComments) };
     }),
@@ -141,20 +186,20 @@ export const useAppStore = create<AppState>((set) => ({
   toggleResolveComment: (commentId) =>
     set((state) => {
       const toggleReplies = (comments: ReviewComment[]): ReviewComment[] =>
-        comments.map((comment) => ({
-          ...comment,
-          ...(comment.id === commentId ? { resolved: !comment.resolved } : {}),
-          replies: comment.replies ? toggleReplies(comment.replies) : undefined,
+        comments.map((c) => ({
+          ...c,
+          ...(c.id === commentId ? { resolved: !c.resolved } : {}),
+          replies: c.replies ? toggleReplies(c.replies) : undefined,
         }));
       return { reviewComments: toggleReplies(state.reviewComments) };
     }),
 
   retryPublish: (recordId) =>
     set((state) => ({
-      publishRecords: state.publishRecords.map((record) =>
-        record.id === recordId
-          ? { ...record, status: 'pending', retryCount: record.retryCount + 1, errorMessage: undefined }
-          : record
+      publishRecords: state.publishRecords.map((r) =>
+        r.id === recordId
+          ? { ...r, status: 'pending', retryCount: r.retryCount + 1, errorMessage: undefined }
+          : r
       ),
     })),
 
@@ -167,17 +212,23 @@ export const useAppStore = create<AppState>((set) => ({
 
   toggleMaterialTag: (materialId, tagId) =>
     set((state) => {
+      const material = state.materials.find((m) => m.id === materialId);
+      const hasTag = material?.tags.includes(tagId);
       const updatedTags = state.tags.map((t) => {
-        const material = state.materials.find((m) => m.id === materialId);
-        const hasTag = material?.tags.includes(tagId);
-        return hasTag ? { ...t, count: t.count - 1 } : { ...t, count: t.count + 1 };
+        const count = state.materials.reduce((n, m) => {
+          if (m.id === materialId) {
+            return hasTag ? n : n + (m.tags.includes(t.id) ? 1 : 0) + 1;
+          }
+          return n + (m.tags.includes(t.id) ? 1 : 0);
+        }, 0);
+        return { ...t, count };
       });
       return {
         materials: state.materials.map((m) =>
           m.id === materialId
             ? {
                 ...m,
-                tags: m.tags.includes(tagId) ? m.tags.filter((t) => t !== tagId) : [...m.tags, tagId],
+                tags: hasTag ? m.tags.filter((t) => t !== tagId) : [...m.tags, tagId],
               }
             : m
         ),
@@ -185,11 +236,50 @@ export const useAppStore = create<AppState>((set) => ({
       };
     }),
 
-  addMaterial: (material) => set((state) => ({
-    materials: [...state.materials, {
-      ...material,
-      id: `mat-${Date.now()}`,
-      createdAt: new Date().toISOString().split('T')[0],
-    }],
-  })),
+  addMaterial: (material) =>
+    set((state) => ({
+      materials: [
+        ...state.materials,
+        {
+          ...material,
+          id: `mat-${Date.now()}`,
+          createdAt: new Date().toISOString().split('T')[0],
+        },
+      ],
+    })),
+
+  createMaterialPackage: (pkg) =>
+    set((state) => ({
+      materialPackages: [
+        ...state.materialPackages,
+        {
+          ...pkg,
+          id: `pkg-${Date.now()}`,
+          createdAt: new Date().toISOString().split('T')[0],
+        },
+      ],
+    })),
+
+  addMaterialsToPackage: (packageId, materialIds) =>
+    set((state) => ({
+      materialPackages: state.materialPackages.map((p) =>
+        p.id === packageId
+          ? { ...p, materialIds: [...new Set([...p.materialIds, ...materialIds])] }
+          : p
+      ),
+    })),
+
+  removeMaterialsFromPackage: (packageId, materialIds) =>
+    set((state) => ({
+      materialPackages: state.materialPackages.map((p) =>
+        p.id === packageId
+          ? { ...p, materialIds: p.materialIds.filter((id) => !materialIds.includes(id)) }
+          : p
+      ),
+    })),
+
+  deleteMaterialPackage: (packageId) =>
+    set((state) => ({
+      materialPackages: state.materialPackages.filter((p) => p.id !== packageId),
+    })),
 }));

@@ -144,7 +144,7 @@ export default function Planning() {
               ) : (
                 <Avatar emoji="👤" size="sm" />
               )}
-              <span className="text-xs text-ink-600">{article.assignee}</span>
+              <span className="text-xs text-ink-600">{assigneeUser?.name || article.assignee}</span>
             </div>
             <Badge className={cn(getPriorityColor(article.priority), 'bg-opacity-100')}>
               {getStatusText(article.status)}

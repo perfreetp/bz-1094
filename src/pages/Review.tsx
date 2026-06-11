@@ -42,15 +42,43 @@ const articleContent = [
   '最后需要提醒大家的是，购买电子产品请务必选择正规渠道，避免买到假冒伪劣产品。我们保证所有推荐产品都是经过严格测试的正品行货，假一赔十。',
 ];
 
-const brandIssues: BrandIssue[] = [
-  { id: 'bi-1', paragraph: 1, word: '某品牌', suggestion: '相关品牌', level: 'low' },
-  { id: 'bi-2', paragraph: 2, word: '本公司', suggestion: '我们', level: 'medium' },
-  { id: 'bi-3', paragraph: 2, word: '绝对', suggestion: '相对', level: 'high' },
-  { id: 'bi-4', paragraph: 2, word: '行业第一', suggestion: '行业前列', level: 'high' },
-  { id: 'bi-5', paragraph: 3, word: '最好用', suggestion: '优秀的', level: 'high' },
-  { id: 'bi-6', paragraph: 3, word: '完美', suggestion: '出色', level: 'high' },
-  { id: 'bi-7', paragraph: 4, word: '假一赔十', suggestion: '品质保证', level: 'medium' },
-];
+const BRAND_WORDS: Record<string, { suggestion: string; level: 'high' | 'medium' | 'low' }> = {
+  '最好': { suggestion: '优秀的', level: 'high' },
+  '完美': { suggestion: '出色', level: 'high' },
+  '绝对': { suggestion: '相对', level: 'high' },
+  '第一': { suggestion: '前列', level: 'high' },
+  '领先': { suggestion: '先进', level: 'medium' },
+  '最': { suggestion: '极', level: 'high' },
+  '100%': { suggestion: '极高', level: 'high' },
+  '假一赔十': { suggestion: '品质保证', level: 'medium' },
+  '国家级': { suggestion: '专业级', level: 'high' },
+  '权威': { suggestion: '专业', level: 'medium' },
+  '唯一': { suggestion: '独特', level: 'high' },
+  '顶级': { suggestion: '优质', level: 'high' },
+  '极致': { suggestion: '卓越', level: 'high' },
+  '本公司': { suggestion: '我们', level: 'medium' },
+  '某品牌': { suggestion: '相关品牌', level: 'low' },
+  '全网首发': { suggestion: '新品发布', level: 'medium' },
+};
+
+function generateIssuesFromContent(paragraphs: string[]): BrandIssue[] {
+  const issues: BrandIssue[] = [];
+  paragraphs.forEach((para, idx) => {
+    Object.entries(BRAND_WORDS).forEach(([word, cfg]) => {
+      if (para.includes(word)) {
+        issues.push({
+          id: `bi-${idx}-${word}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          paragraph: idx + 1,
+          word,
+          suggestion: cfg.suggestion,
+          level: cfg.level,
+          replaced: false,
+        });
+      }
+    });
+  });
+  return issues;
+}
 
 const levelConfig = {
   high: { label: '高风险', color: 'danger', icon: AlertOctagon },
@@ -66,11 +94,11 @@ function getParagraphsFromContent(content: string): string[] {
 
 export default function Review() {
   const [activeTab, setActiveTab] = useState<ReviewTab>('brand');
-  const [issues, setIssues] = useState<BrandIssue[]>(brandIssues);
+  const [issues, setIssues] = useState<BrandIssue[]>([]);
   const [selectedArticleId, setSelectedArticleId] = useState<string>('art-11');
   const [newComment, setNewComment] = useState('');
   const [selectedPublishIds, setSelectedPublishIds] = useState<Set<string>>(new Set());
-  const [articleParagraphs, setArticleParagraphs] = useState<string[]>(articleContent);
+  const [articleParagraphs, setArticleParagraphs] = useState<string[]>([]);
   const prevArticleIdRef = useRef<string>(selectedArticleId);
 
   const {
@@ -98,14 +126,19 @@ export default function Review() {
     if (selectedArticleId !== prevArticleIdRef.current) {
       prevArticleIdRef.current = selectedArticleId;
       const article = articles.find((a) => a.id === selectedArticleId);
-      if (article?.content) {
-        setArticleParagraphs(getParagraphsFromContent(article.content));
-      } else {
-        setArticleParagraphs(articleContent);
-      }
-      setIssues(brandIssues.map((i) => ({ ...i, replaced: false })));
+      const paragraphs = article?.content ? getParagraphsFromContent(article.content) : articleContent;
+      setArticleParagraphs(paragraphs);
+      setIssues(generateIssuesFromContent(paragraphs));
     }
   }, [selectedArticleId, articles]);
+
+  useEffect(() => {
+    const article = articles.find((a) => a.id === selectedArticleId);
+    const paragraphs = article?.content ? getParagraphsFromContent(article.content) : articleContent;
+    setArticleParagraphs(paragraphs);
+    setIssues(generateIssuesFromContent(paragraphs));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const failedRecords = useMemo(() => publishRecords.filter((r) => r.status === 'failed'), [publishRecords]);
   const pendingArticles = useMemo(() => articles.filter((a) => ['review', 'scheduled', 'writing'].includes(a.status)), [articles]);

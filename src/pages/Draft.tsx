@@ -1,4 +1,5 @@
-import { useState, useCallback, type ComponentType } from 'react';
+import { useState, useCallback, useEffect, useMemo, type ComponentType } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Sparkles,
   Wand2,
@@ -19,25 +20,67 @@ import {
   X,
   Loader2,
   Pencil,
+  Package,
+  FolderKanban,
+  ChevronLeft,
+  ChevronRight,
+  LayoutPanelLeft,
+  FileText,
+  BookmarkPlus,
+  Search,
+  Eye,
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { useAppStore } from '@/store/useAppStore';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
-import { cn } from '@/utils';
+import { cn, formatNumber } from '@/utils';
+import type { Material, MaterialType } from '@/types';
 
 type TemplateType = 'simple' | 'business' | 'lively';
 type AiTabType = 'title' | 'opening' | 'quote' | 'preview';
 type OpeningStyleType = 'story' | 'data' | 'suspense' | 'resonance';
+type MaterialPanelTab = 'packages' | 'browse';
+type BrowseMaterialType = MaterialType | 'all';
 
 interface ContentItem {
   id: string;
   type: 'paragraph' | 'image-placeholder';
   content?: string;
+  thumbnail?: string;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
+const getParagraphsFromContent = (content: string): string[] => {
+  return content
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+};
+
+const typeLabels: Record<MaterialType, string> = {
+  image: '图',
+  copy: '文案',
+  quote: '金句',
+  competitor: '竞品',
+};
+
+const browseTabs: Array<{ key: BrowseMaterialType; label: string; icon: typeof Image }> = [
+  { key: 'all', label: '全部', icon: Image },
+  { key: 'image', label: '图片', icon: Image },
+  { key: 'copy', label: '文案', icon: FileText },
+  { key: 'quote', label: '金句', icon: Quote },
+  { key: 'competitor', label: '竞品', icon: BookmarkPlus },
+];
+
 export default function Draft() {
+  const { materials, materialPackages, articles } = useAppStore();
+  const location = useLocation();
+
+  const [currentArticleId, setCurrentArticleId] = useState<string>('');
+  const [articleAccountId, setArticleAccountId] = useState<string>('');
+  const [articleCategory, setArticleCategory] = useState<string>('');
   const [articleTitle, setArticleTitle] = useState('');
   const [contentItems, setContentItems] = useState<ContentItem[]>([
     { id: generateId(), type: 'paragraph', content: '' },
@@ -48,6 +91,13 @@ export default function Draft() {
     message: '',
     visible: false,
   });
+
+  const [activeMaterialPanel, setActiveMaterialPanel] = useState(false);
+  const [materialPanelTab, setMaterialPanelTab] = useState<MaterialPanelTab>('packages');
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
+  const [browseFilter, setBrowseFilter] = useState<BrowseMaterialType>('all');
+  const [browseSearch, setBrowseSearch] = useState('');
+  const [copiedMaterialId, setCopiedMaterialId] = useState<string | null>(null);
 
   const [activeAiTab, setActiveAiTab] = useState<AiTabType>('title');
   const [keywordInput, setKeywordInput] = useState('');
@@ -76,9 +126,108 @@ export default function Draft() {
     }
   }, [showToast]);
 
-  const articleContent = contentItems
-    .filter((item) => item.type === 'paragraph')
-    .map((item) => item.content || '');
+  const copyMaterial = useCallback(async (text: string, materialId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMaterialId(materialId);
+      setTimeout(() => setCopiedMaterialId(null), 1500);
+      showToast('已复制到剪贴板');
+    } catch {
+      showToast('复制失败');
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    const locationState = location.state as { articleId?: string } | null;
+    if (locationState?.articleId) {
+      const article = articles.find((a) => a.id === locationState.articleId);
+      if (article) {
+        setCurrentArticleId(article.id);
+        setArticleAccountId(article.accountId);
+        setArticleCategory(article.category);
+        setArticleTitle(article.title);
+        const paragraphs = getParagraphsFromContent(article.content);
+        if (paragraphs.length > 0) {
+          setContentItems(
+            paragraphs.map((p) => ({ id: generateId(), type: 'paragraph' as const, content: p }))
+          );
+        }
+      }
+    }
+  }, [location.state, articles]);
+
+  const articleContent = useMemo(
+    () =>
+      contentItems
+        .filter((item) => item.type === 'paragraph')
+        .map((item) => item.content || ''),
+    [contentItems]
+  );
+
+  const matchedPackages = useMemo(() => {
+    if (!articleAccountId || !articleCategory) return [];
+    return materialPackages.filter(
+      (p) => p.accountId === articleAccountId && p.category === articleCategory
+    );
+  }, [materialPackages, articleAccountId, articleCategory]);
+
+  const otherPackages = useMemo(() => {
+    if (!articleAccountId || !articleCategory) return materialPackages;
+    return materialPackages.filter(
+      (p) => !(p.accountId === articleAccountId && p.category === articleCategory)
+    );
+  }, [materialPackages, articleAccountId, articleCategory]);
+
+  const getPackageMaterials = useCallback(
+    (pkgId: string) => {
+      const pkg = materialPackages.find((p) => p.id === pkgId);
+      if (!pkg) return [];
+      return materials.filter((m) => pkg.materialIds.includes(m.id));
+    },
+    [materialPackages, materials]
+  );
+
+  const getMaterialTypeDistribution = useCallback(
+    (pkgId: string) => {
+      const pkgMaterials = getPackageMaterials(pkgId);
+      const count: Record<MaterialType, number> = { image: 0, copy: 0, quote: 0, competitor: 0 };
+      pkgMaterials.forEach((m) => {
+        count[m.type]++;
+      });
+      return count;
+    },
+    [getPackageMaterials]
+  );
+
+  const insertParagraphAtEnd = useCallback((text: string) => {
+    setContentItems((prev) => [...prev, { id: generateId(), type: 'paragraph', content: text }]);
+  }, []);
+
+  const insertImagePlaceholder = useCallback((thumb?: string) => {
+    setContentItems((prev) => [
+      ...prev,
+      { id: generateId(), type: 'image-placeholder', thumbnail: thumb },
+    ]);
+  }, []);
+
+  const insertMaterial = useCallback(
+    (material: Material) => {
+      switch (material.type) {
+        case 'image':
+          insertImagePlaceholder(material.thumbnail);
+          break;
+        case 'copy':
+        case 'competitor':
+          insertParagraphAtEnd(material.content || material.title);
+          break;
+        case 'quote':
+          insertParagraphAtEnd(material.content || material.title);
+          break;
+      }
+      showToast('已插入');
+    },
+    [insertImagePlaceholder, insertParagraphAtEnd, showToast]
+  );
 
   const generateTitles = async () => {
     if (!keywordInput.trim()) {
@@ -184,7 +333,7 @@ export default function Draft() {
     );
   };
 
-  const insertImagePlaceholder = () => {
+  const insertImagePlaceholderEditor = () => {
     const insertIndex = editingParagraphId
       ? contentItems.findIndex((item) => item.id === editingParagraphId) + 1
       : contentItems.length;
@@ -203,6 +352,18 @@ export default function Draft() {
   const addNewParagraph = () => {
     setContentItems((prev) => [...prev, { id: generateId(), type: 'paragraph', content: '' }]);
   };
+
+  const filteredBrowseMaterials = useMemo(() => {
+    return materials.filter((material) => {
+      if (browseFilter !== 'all' && material.type !== browseFilter) {
+        return false;
+      }
+      if (browseSearch && !material.title.toLowerCase().includes(browseSearch.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+  }, [materials, browseFilter, browseSearch]);
 
   const templateOptions = [
     { id: 'simple' as TemplateType, name: '简约', description: '白底黑字，清爽阅读' },
@@ -264,6 +425,205 @@ export default function Draft() {
     </div>
   );
 
+  const renderMaterialCard = (material: Material, key: string) => {
+    const isCopied = copiedMaterialId === material.id;
+    const textToCopy = material.content || material.title;
+
+    if (material.type === 'image') {
+      return (
+        <div key={key} className="bg-white rounded-xl border border-ink-100 overflow-hidden hover:shadow-md transition-shadow">
+          <div className="aspect-video bg-gradient-to-br from-brand-50 to-copper-50 flex items-center justify-center text-4xl">
+            {material.thumbnail || '🖼️'}
+          </div>
+          <div className="p-2">
+            <p className="text-xs font-medium text-ink-700 line-clamp-1 mb-2">{material.title}</p>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => insertMaterial(material)}
+                className="flex-1 px-2 py-1 text-xs text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-md transition-colors"
+              >
+                插入
+              </button>
+              <button
+                type="button"
+                onClick={() => copyMaterial(textToCopy, material.id)}
+                className="px-2 py-1 text-xs text-ink-600 bg-ink-50 hover:bg-ink-100 rounded-md transition-colors"
+              >
+                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (material.type === 'quote') {
+      return (
+        <div key={key} className="bg-gradient-to-br from-copper-500 to-copper-600 rounded-xl text-white p-3 hover:shadow-md transition-shadow">
+          <Quote size={20} className="text-white/30 mb-2" />
+          <p className="text-xs font-medium text-white line-clamp-3 mb-2">"{material.content}"</p>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => insertMaterial(material)}
+              className="flex-1 px-2 py-1 text-xs bg-white/20 hover:bg-white/30 rounded-md transition-colors"
+            >
+              插入
+            </button>
+            <button
+              type="button"
+              onClick={() => copyMaterial(textToCopy, material.id)}
+              className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded-md transition-colors"
+            >
+              {isCopied ? <Check size={12} /> : <Copy size={12} />}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (material.type === 'copy' || material.type === 'competitor') {
+      const iconEl = material.type === 'copy' ? <FileText size={14} /> : <BookmarkPlus size={14} />;
+      const iconColor = material.type === 'copy' ? 'text-ink-500' : 'text-brand-600';
+      const iconBg = material.type === 'copy' ? 'bg-ink-100' : 'bg-brand-100';
+      return (
+        <div key={key} className="bg-white rounded-xl border border-ink-100 p-3 hover:shadow-md transition-shadow flex flex-col">
+          <div className={`w-7 h-7 rounded-md ${iconBg} flex items-center justify-center mb-2 ${iconColor}`}>
+            {iconEl}
+          </div>
+          <p className="text-xs font-medium text-ink-700 line-clamp-1 mb-1">{material.title}</p>
+          <p className="text-[11px] text-ink-500 line-clamp-2 flex-1 mb-2">{material.content}</p>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => insertMaterial(material)}
+              className="flex-1 px-2 py-1 text-xs text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-md transition-colors"
+            >
+              插入
+            </button>
+            <button
+              type="button"
+              onClick={() => copyMaterial(textToCopy, material.id)}
+              className="px-2 py-1 text-xs text-ink-600 bg-ink-50 hover:bg-ink-100 rounded-md transition-colors"
+            >
+              {isCopied ? <Check size={12} /> : <Copy size={12} />}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderPackageMaterialCard = (material: Material, key: string) => {
+    const isCopied = copiedMaterialId === material.id;
+    const textToCopy = material.content || material.title;
+
+    if (material.type === 'image') {
+      return (
+        <div key={key} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-ink-100 hover:border-ink-200 transition-colors">
+          <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-brand-50 to-copper-50 flex items-center justify-center text-2xl flex-shrink-0">
+            {material.thumbnail || '🖼️'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-ink-800 line-clamp-1">{material.title}</p>
+            {material.views !== undefined && (
+              <p className="text-xs text-ink-400 flex items-center gap-1 mt-0.5">
+                <Eye size={10} /> {formatNumber(material.views)}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => insertMaterial(material)}
+              className="px-2.5 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+            >
+              插入
+            </button>
+            <button
+              type="button"
+              onClick={() => copyMaterial(textToCopy, material.id)}
+              className="px-2.5 py-1.5 text-xs text-ink-500 bg-ink-50 hover:bg-ink-100 rounded-lg transition-colors"
+              title="复制"
+            >
+              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (material.type === 'quote') {
+      return (
+        <div key={key} className="relative p-4 bg-gradient-to-br from-copper-50 to-white rounded-xl border border-copper-100">
+          <Quote size={20} className="absolute top-3 left-3 text-copper-300 opacity-50" />
+          <p className="text-sm text-ink-700 leading-relaxed pl-6 pr-2 font-medium mb-3">
+            "{material.content}"
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => insertMaterial(material)}
+              className="px-2.5 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+            >
+              插入
+            </button>
+            <button
+              type="button"
+              onClick={() => copyMaterial(textToCopy, material.id)}
+              className="px-2.5 py-1.5 text-xs text-ink-500 bg-ink-50 hover:bg-ink-100 rounded-lg transition-colors"
+            >
+              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (material.type === 'copy' || material.type === 'competitor') {
+      const iconEl = material.type === 'copy' ? <FileText size={14} /> : <BookmarkPlus size={14} />;
+      const iconColor = material.type === 'copy' ? 'text-ink-500' : 'text-brand-600';
+      const iconBg = material.type === 'copy' ? 'bg-ink-100' : 'bg-brand-100';
+      return (
+        <div key={key} className="p-3 bg-white rounded-xl border border-ink-100 hover:border-ink-200 transition-colors">
+          <div className="flex items-start gap-2 mb-2">
+            <div className={`w-6 h-6 rounded-md ${iconBg} flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+              {iconEl}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-ink-800 line-clamp-1">{material.title}</p>
+              {material.source && material.type === 'competitor' && (
+                <Badge variant="default" className="mt-0.5 text-[10px]">{material.source}</Badge>
+              )}
+            </div>
+          </div>
+          <p className="text-sm text-ink-600 line-clamp-2 mb-2">{material.content}</p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => insertMaterial(material)}
+              className="px-2.5 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+            >
+              插入
+            </button>
+            <button
+              type="button"
+              onClick={() => copyMaterial(textToCopy, material.id)}
+              className="px-2.5 py-1.5 text-xs text-ink-500 bg-ink-50 hover:bg-ink-100 rounded-lg transition-colors"
+            >
+              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -272,7 +632,334 @@ export default function Draft() {
       </div>
 
       <div className="flex gap-6 h-[calc(100vh-220px)] min-h-[600px]">
-        <div className="w-[55%] flex flex-col">
+        <div className="flex">
+          <div className="w-12 flex-shrink-0 flex flex-col items-center py-4 gap-2 border-r border-ink-100 bg-ink-50/50 rounded-l-xl">
+            <button
+              type="button"
+              onClick={() => setActiveMaterialPanel(false)}
+              className={cn(
+                'w-10 h-12 flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-all duration-200 gap-1',
+                !activeMaterialPanel
+                  ? 'bg-brand-600 text-white shadow-md'
+                  : 'text-ink-500 hover:bg-white hover:text-brand-600'
+              )}
+              title="编辑"
+            >
+              <Pencil size={16} />
+              编辑
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveMaterialPanel(true)}
+              className={cn(
+                'w-10 h-12 flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-all duration-200 gap-1',
+                activeMaterialPanel
+                  ? 'bg-copper-600 text-white shadow-md'
+                  : 'text-ink-500 hover:bg-white hover:text-copper-600'
+              )}
+              title="素材"
+            >
+              <Package size={16} />
+              素材
+            </button>
+          </div>
+
+          <div
+            className={cn(
+              'transition-all duration-300 ease-in-out overflow-hidden',
+              activeMaterialPanel ? 'w-80 opacity-100' : 'w-0 opacity-0'
+            )}
+          >
+            <Card className="h-full flex flex-col rounded-l-none overflow-hidden">
+              <div className="flex border-b border-ink-100 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMaterialPanelTab('packages');
+                    setSelectedPackageId(null);
+                  }}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all border-b-2',
+                    materialPanelTab === 'packages'
+                      ? 'text-copper-700 border-copper-500 bg-copper-50/30'
+                      : 'text-ink-500 border-transparent hover:text-ink-700 hover:bg-ink-50'
+                  )}
+                >
+                  <FolderKanban size={14} />
+                  匹配素材包
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMaterialPanelTab('browse');
+                    setSelectedPackageId(null);
+                  }}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all border-b-2',
+                    materialPanelTab === 'browse'
+                      ? 'text-brand-700 border-brand-500 bg-brand-50/30'
+                      : 'text-ink-500 border-transparent hover:text-ink-700 hover:bg-ink-50'
+                  )}
+                >
+                  <LayoutPanelLeft size={14} />
+                  全部浏览
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                {materialPanelTab === 'packages' && !selectedPackageId && (
+                  <div className="p-3 space-y-4">
+                    {(articleAccountId && articleCategory) && matchedPackages.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2 px-1">
+                          <Badge variant="copper">推荐</Badge>
+                          <span className="text-xs text-ink-500">
+                            匹配当前账号·{articleCategory}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {matchedPackages.map((pkg) => {
+                            const dist = getMaterialTypeDistribution(pkg.id);
+                            return (
+                              <div
+                                key={pkg.id}
+                                className="p-3 bg-gradient-to-br from-copper-50 to-white rounded-xl border-2 border-copper-200 hover:border-copper-400 transition-colors"
+                              >
+                                <div className="flex items-start justify-between gap-2 mb-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h5 className="font-semibold text-ink-800 text-sm">{pkg.name}</h5>
+                                    <Badge variant="copper">推荐</Badge>
+                                  </div>
+                                </div>
+                                {pkg.description && (
+                                  <p className="text-xs text-ink-500 line-clamp-2 mb-2">
+                                    {pkg.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs text-ink-400">
+                                    <span className="text-ink-600 font-medium">{pkg.materialIds.length}</span> 个素材
+                                    <span className="mx-1.5 text-ink-300">·</span>
+                                    {(['image', 'copy', 'quote', 'competitor'] as MaterialType[]).map((t) => (
+                                      dist[t] > 0 && (
+                                        <span key={t} className="mr-1">
+                                          {dist[t]}{typeLabels[t]}
+                                        </span>
+                                      )
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPackageId(pkg.id)}
+                                    className="px-3 py-1 text-xs font-medium text-copper-700 bg-copper-100 hover:bg-copper-200 rounded-lg transition-colors"
+                                  >
+                                    打开
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {(articleAccountId && articleCategory) && matchedPackages.length === 0 && (
+                      <div className="p-4 bg-ink-50 rounded-xl text-center">
+                        <Package size={28} className="mx-auto text-ink-300 mb-2" />
+                        <p className="text-sm text-ink-500">暂无匹配素材包</p>
+                        <p className="text-xs text-ink-400 mt-1">
+                          账号·{articleCategory}
+                        </p>
+                      </div>
+                    )}
+
+                    {otherPackages.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2 px-1">
+                          <Badge variant="default">其他</Badge>
+                          <span className="text-xs text-ink-500">更多素材包可选</span>
+                        </div>
+                        <div className="space-y-2">
+                          {otherPackages.map((pkg) => {
+                            const dist = getMaterialTypeDistribution(pkg.id);
+                            return (
+                              <div
+                                key={pkg.id}
+                                className="p-3 bg-white rounded-xl border border-ink-100 hover:border-ink-200 transition-colors"
+                              >
+                                <div className="flex items-start justify-between gap-2 mb-1.5">
+                                  <h5 className="font-semibold text-ink-800 text-sm">{pkg.name}</h5>
+                                </div>
+                                {pkg.description && (
+                                  <p className="text-xs text-ink-500 line-clamp-2 mb-2">
+                                    {pkg.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs text-ink-400">
+                                    <span className="text-ink-600 font-medium">{pkg.materialIds.length}</span> 个素材
+                                    <span className="mx-1.5 text-ink-300">·</span>
+                                    {(['image', 'copy', 'quote', 'competitor'] as MaterialType[]).map((t) => (
+                                      dist[t] > 0 && (
+                                        <span key={t} className="mr-1">
+                                          {dist[t]}{typeLabels[t]}
+                                        </span>
+                                      )
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPackageId(pkg.id)}
+                                    className="px-3 py-1 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+                                  >
+                                    打开
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {materialPanelTab === 'packages' && selectedPackageId && (() => {
+                  const pkg = materialPackages.find((p) => p.id === selectedPackageId);
+                  if (!pkg) return null;
+                  const pkgMaterials = getPackageMaterials(pkg.id);
+                  const groupedMaterials: Record<MaterialType, Material[]> = {
+                    image: [],
+                    copy: [],
+                    quote: [],
+                    competitor: [],
+                  };
+                  pkgMaterials.forEach((m) => {
+                    groupedMaterials[m.type].push(m);
+                  });
+                  return (
+                    <div className="flex flex-col h-full">
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-ink-100 bg-ink-50/50 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPackageId(null)}
+                          className="flex items-center gap-1 text-sm text-ink-600 hover:text-brand-600 transition-colors"
+                        >
+                          <ChevronLeft size={14} />
+                          返回列表
+                        </button>
+                        <span className="text-xs text-ink-400">
+                          {pkgMaterials.length} 个素材
+                        </span>
+                      </div>
+                      <div className="p-3 space-y-4 flex-1 overflow-y-auto">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-ink-800 text-base">{pkg.name}</h4>
+                          {pkg.accountId === articleAccountId && pkg.category === articleCategory && (
+                            <Badge variant="copper">推荐</Badge>
+                          )}
+                        </div>
+                        {pkg.description && (
+                          <p className="text-sm text-ink-500">{pkg.description}</p>
+                        )}
+
+                        {(['image', 'copy', 'quote', 'competitor'] as MaterialType[]).map((type) => (
+                          groupedMaterials[type].length > 0 && (
+                            <div key={type}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className={cn(
+                                  'w-5 h-5 rounded-md flex items-center justify-center text-white text-xs',
+                                  type === 'image' && 'bg-brand-500',
+                                  type === 'copy' && 'bg-ink-500',
+                                  type === 'quote' && 'bg-copper-500',
+                                  type === 'competitor' && 'bg-purple-500'
+                                )}>
+                                  {type === 'image' && <Image size={10} />}
+                                  {type === 'copy' && <FileText size={10} />}
+                                  {type === 'quote' && <Quote size={10} />}
+                                  {type === 'competitor' && <BookmarkPlus size={10} />}
+                                </div>
+                                <span className="text-sm font-medium text-ink-700">
+                                  {{ image: '图片素材', copy: '文案素材', quote: '金句素材', competitor: '竞品分析' }[type]}
+                                </span>
+                                <span className="text-xs text-ink-400">
+                                  {groupedMaterials[type].length} 项
+                                </span>
+                              </div>
+                              <div className="space-y-2 pl-7">
+                                {groupedMaterials[type].map((m) =>
+                                  renderPackageMaterialCard(m, m.id)
+                                )}
+                              </div>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {materialPanelTab === 'browse' && (
+                  <div className="h-full flex flex-col">
+                    <div className="p-3 space-y-2 border-b border-ink-100 flex-shrink-0">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
+                        <input
+                          type="text"
+                          placeholder="搜索素材..."
+                          value={browseSearch}
+                          onChange={(e) => setBrowseSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2 text-sm bg-ink-50 border border-ink-200 rounded-lg outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                        />
+                      </div>
+                      <div className="flex gap-1 overflow-x-auto pb-0.5">
+                        {browseTabs.map((tab) => {
+                          const Icon = tab.icon;
+                          return (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setBrowseFilter(tab.key)}
+                              className={cn(
+                                'flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all',
+                                browseFilter === tab.key
+                                  ? 'bg-brand-600 text-white'
+                                  : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+                              )}
+                            >
+                              <Icon size={12} />
+                              {tab.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3">
+                      {filteredBrowseMaterials.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {filteredBrowseMaterials.map((material) =>
+                            renderMaterialCard(material, material.id)
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <Search size={32} className="text-ink-300 mb-3" />
+                          <p className="text-sm text-ink-500">暂无素材</p>
+                          <p className="text-xs text-ink-400 mt-1">调整筛选条件试试</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        <div className={cn(
+          'flex flex-col flex-1 transition-all duration-300',
+          activeMaterialPanel ? 'min-w-0' : ''
+        )}>
           <Card className="flex-1 p-6 overflow-y-auto">
             <div className="max-w-2xl mx-auto space-y-6">
               <input
@@ -299,7 +986,7 @@ export default function Draft() {
                 <div className="flex-1" />
                 <button
                   type="button"
-                  onClick={insertImagePlaceholder}
+                  onClick={insertImagePlaceholderEditor}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-copper-600 bg-copper-50 hover:bg-copper-100 rounded-lg transition-colors"
                 >
                   <ImagePlus size={16} />
@@ -334,9 +1021,18 @@ export default function Draft() {
                       </div>
                     ) : (
                       <div className="relative group">
-                        <div className="aspect-video border-2 border-dashed border-ink-200 rounded-lg bg-ink-50 flex flex-col items-center justify-center text-ink-400 hover:border-copper-400 hover:bg-copper-50/30 transition-colors cursor-pointer">
-                          <ImagePlus size={32} className="mb-2" />
-                          <span className="text-sm">点击替换配图</span>
+                        <div className="aspect-video border-2 border-dashed border-ink-200 rounded-lg bg-ink-50 flex flex-col items-center justify-center text-ink-400 hover:border-copper-400 hover:bg-copper-50/30 transition-colors cursor-pointer overflow-hidden">
+                          {item.thumbnail ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center">
+                              <div className="text-6xl mb-2">{item.thumbnail}</div>
+                              <span className="text-sm text-ink-500">点击替换配图</span>
+                            </div>
+                          ) : (
+                            <>
+                              <ImagePlus size={32} className="mb-2" />
+                              <span className="text-sm">点击替换配图</span>
+                            </>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -390,7 +1086,7 @@ export default function Draft() {
           </Card>
         </div>
 
-        <div className="w-[45%] flex flex-col">
+        <div className="w-[45%] flex-shrink-0 flex flex-col">
           <Card className="flex-1 flex flex-col overflow-hidden">
             <div className="flex border-b border-ink-100">
               {aiTabs.map((tab) => {
@@ -666,7 +1362,11 @@ export default function Draft() {
                                     )
                                   ) : (
                                     <div className="aspect-video bg-ink-200 rounded-lg flex items-center justify-center">
-                                      <Image size={20} className="text-ink-400" />
+                                      {item.thumbnail ? (
+                                        <span className="text-4xl">{item.thumbnail}</span>
+                                      ) : (
+                                        <Image size={20} className="text-ink-400" />
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -700,7 +1400,7 @@ export default function Draft() {
                   </div>
 
                   <div className="pt-3 border-t border-ink-100">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="brand">{templateOptions.find(t => t.id === selectedTemplate)?.name}模板</Badge>
                       <Badge variant="copper">{articleContent.length} 段落</Badge>
                       <Badge variant="default">{contentItems.filter(i => i.type === 'image-placeholder').length} 配图</Badge>
