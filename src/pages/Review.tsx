@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   AlertTriangle,
   CheckCircle,
@@ -71,6 +71,7 @@ export default function Review() {
   const [newComment, setNewComment] = useState('');
   const [selectedPublishIds, setSelectedPublishIds] = useState<Set<string>>(new Set());
   const [articleParagraphs, setArticleParagraphs] = useState<string[]>(articleContent);
+  const prevArticleIdRef = useRef<string>(selectedArticleId);
 
   const {
     reviewComments,
@@ -94,13 +95,17 @@ export default function Review() {
   const currentArticle = useMemo(() => articles.find((a) => a.id === selectedArticleId), [articles, selectedArticleId]);
 
   useEffect(() => {
-    if (currentArticle?.content) {
-      setArticleParagraphs(getParagraphsFromContent(currentArticle.content));
-    } else {
-      setArticleParagraphs(articleContent);
+    if (selectedArticleId !== prevArticleIdRef.current) {
+      prevArticleIdRef.current = selectedArticleId;
+      const article = articles.find((a) => a.id === selectedArticleId);
+      if (article?.content) {
+        setArticleParagraphs(getParagraphsFromContent(article.content));
+      } else {
+        setArticleParagraphs(articleContent);
+      }
+      setIssues(brandIssues.map((i) => ({ ...i, replaced: false })));
     }
-    setIssues(brandIssues.map(i => ({ ...i, replaced: false })));
-  }, [selectedArticleId, currentArticle]);
+  }, [selectedArticleId, articles]);
 
   const failedRecords = useMemo(() => publishRecords.filter((r) => r.status === 'failed'), [publishRecords]);
   const pendingArticles = useMemo(() => articles.filter((a) => ['review', 'scheduled', 'writing'].includes(a.status)), [articles]);

@@ -49,6 +49,7 @@ interface AppState {
   setSelectedMaterialType: (type: MaterialType | 'all') => void;
   updateArticleContent: (articleId: string, content: string) => void;
   toggleMaterialTag: (materialId: string, tagId: string) => void;
+  addMaterial: (material: Omit<Material, 'id' | 'createdAt'>) => void;
 }
 
 const statusProgressMap: Record<string, number> = {
@@ -183,4 +184,12 @@ export const useAppStore = create<AppState>((set) => ({
         tags: updatedTags,
       };
     }),
+
+  addMaterial: (material) => set((state) => ({
+    materials: [...state.materials, {
+      ...material,
+      id: `mat-${Date.now()}`,
+      createdAt: new Date().toISOString().split('T')[0],
+    }],
+  })),
 }));

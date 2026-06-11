@@ -24,7 +24,7 @@ const priorityVariants: Record<string, 'danger' | 'warning' | 'success'> = {
 };
 
 export default function Kanban() {
-  const { tasks, accounts, users, updateTaskStatus } = useAppStore();
+  const { tasks, articles, accounts, users, updateTaskStatus } = useAppStore();
 
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
@@ -33,12 +33,17 @@ export default function Kanban() {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
+  const getTaskAccountId = (task: Task) => {
+    const article = articles.find((a) => a.id === task.articleId);
+    return article?.accountId || task.accountId;
+  };
+
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       if (searchKeyword && !task.title.toLowerCase().includes(searchKeyword.toLowerCase())) {
         return false;
       }
-      if (selectedAccountId !== 'all' && task.accountId !== selectedAccountId) {
+      if (selectedAccountId !== 'all' && getTaskAccountId(task) !== selectedAccountId) {
         return false;
       }
       if (selectedAssignee !== 'all' && task.assignee !== selectedAssignee) {
@@ -49,7 +54,7 @@ export default function Kanban() {
       }
       return true;
     });
-  }, [tasks, searchKeyword, selectedAccountId, selectedAssignee, selectedPriority]);
+  }, [tasks, articles, searchKeyword, selectedAccountId, selectedAssignee, selectedPriority]);
 
   const getTasksByStatus = (status: string) => {
     return filteredTasks.filter((task) => task.status === status);
@@ -204,7 +209,7 @@ export default function Kanban() {
                         <Badge variant={priorityVariants[task.priority]}>
                           {getPriorityText(task.priority)}
                         </Badge>
-                        <span className="text-xs text-ink-500">{getAccountName(task.accountId)}</span>
+                        <span className="text-xs text-ink-500">{getAccountName(getTaskAccountId(task))}</span>
                       </div>
 
                       <h4 className="font-medium text-ink-800 text-sm line-clamp-2 mb-3">

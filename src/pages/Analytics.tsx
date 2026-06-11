@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   AreaChart, Area,
 } from 'recharts';
 import {
-  BarChart3, Eye, TrendingUp, Share2, Target, Flame, Repeat, Calendar,
+  Eye, TrendingUp, Share2, Target, Flame, Repeat, Trophy, ExternalLink, ArrowRight, Filter, BookmarkPlus,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { cn, formatNumber, formatPercent, formatDate } from '@/lib/utils';
@@ -14,13 +15,13 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 
-type TimeRange = '7d' | '30d' | '90d' | 'custom';
+type TimeRange = '7d' | '30d' | '90d';
+type RankTab = 'views' | 'shares' | 'conversions';
 
-const timeRangeOptions: { value: TimeRange; label: string }[] = [
-  { value: '7d', label: '近7天' },
-  { value: '30d', label: '近30天' },
-  { value: '90d', label: '近90天' },
-  { value: 'custom', label: '自定义' },
+const timeRangeOptions: { value: TimeRange; label: string; days: number }[] = [
+  { value: '7d', label: '近7天', days: 7 },
+  { value: '30d', label: '近30天', days: 30 },
+  { value: '90d', label: '近90天', days: 90 },
 ];
 
 const BRAND_COLORS = {
@@ -29,91 +30,140 @@ const BRAND_COLORS = {
   copper: '#C68B59',
   copperLight: '#D9A972',
   brandLight: '#5E9880',
+  brandLighter: '#8BC4AA',
 };
 
+const GROUP_COLORS = ['#1F5140', '#C68B59', '#4A6FA5', '#8B5A2B'];
+
 export default function Analytics() {
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
-  const { articles, accounts } = useAppStore();
+  const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [rankTab, setRankTab] = useState<RankTab>('views');
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
+
+  const { articles, accounts, groups, addMaterial } = useAppStore();
 
   const publishedArticles = useMemo(
     () => articles.filter((a) => a.status === 'published' || a.status === 'archived'),
     [articles]
   );
 
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(publishedArticles.map((a) => a.category)));
+    return cats.sort();
+  }, [publishedArticles]);
+
+  const filteredArticles = useMemo(() => {
+    const days = timeRangeOptions.find((o) => o.value === timeRange)?.days ?? 30;
+    const today = new Date('2026-06-12');
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = formatDate(cutoff);
+
+    return publishedArticles.filter((a) => {
+      if (selectedGroup !== 'all') {
+        const accountIds = accounts.filter((acc) => acc.groupId === selectedGroup).map((acc) => acc.id);
+        if (!accountIds.includes(a.accountId)) return false;
+      }
+      if (selectedCategory !== 'all' && a.category !== selectedCategory) return false;
+      if (a.publishDate && a.publishDate < cutoffStr) return false;
+      return true;
+    });
+  }, [publishedArticles, selectedGroup, selectedCategory, timeRange, accounts]);
+
   const kpiData = useMemo(() => {
-    const totalViews = publishedArticles.reduce((sum, a) => sum + (a.views || 0), 0);
-    const totalLikes = publishedArticles.reduce((sum, a) => sum + (a.likes || 0), 0);
-    const totalShares = publishedArticles.reduce((sum, a) => sum + (a.shares || 0), 0);
-    const totalConversions = publishedArticles.reduce((sum, a) => sum + (a.conversions || 0), 0);
+    const totalViews = filteredArticles.reduce((sum, a) => sum + (a.views || 0), 0);
+    const totalLikes = filteredArticles.reduce((sum, a) => sum + (a.likes || 0), 0);
+    const totalShares = filteredArticles.reduce((sum, a) => sum + (a.shares || 0), 0);
+    const totalConversions = filteredArticles.reduce((sum, a) => sum + (a.conversions || 0), 0);
 
     const avgOpenRate = totalViews > 0 ? (totalLikes / totalViews) * 10 : 0;
     const shareRate = totalViews > 0 ? (totalShares / totalViews) * 100 : 0;
     const conversionRate = totalViews > 0 ? (totalConversions / totalViews) * 100 : 0;
 
-    return {
-      totalViews,
-      avgOpenRate,
-      shareRate,
-      conversionRate,
-      totalConversions,
+    return { totalViews, avgOpenRate, shareRate, conversionRate, totalConversions };
+  }, [filteredArticles]);
+
+  const rankData = useMemo(() => {
+    const getSortKey = (a: typeof filteredArticles[0]) => {
+      switch (rankTab) {
+        case 'views': return a.views || 0;
+        case 'shares': return a.shares || 0;
+        case 'conversions': return a.conversions || 0;
+      }
     };
-  }, [publishedArticles]);
+    const sorted = [...filteredArticles].sort((a, b) => getSortKey(b) - getSortKey(a));
+    return sorted.slice(0, 10);
+  }, [filteredArticles, rankTab]);
 
   const barChartData = useMemo(() => {
-    return publishedArticles
+    return [...filteredArticles]
+      .sort((a, b) => (b.views || 0) - (a.views || 0))
       .slice(0, 6)
       .map((article) => ({
-        name: article.title.length > 8 ? article.title.substring(0, 8) + '...' : article.title,
+        name: article.title.length > 6 ? article.title.substring(0, 6) + '...' : article.title,
         阅读量: article.views || 0,
         转化数: article.conversions || 0,
       }));
-  }, [publishedArticles]);
+  }, [filteredArticles]);
 
   const radarChartData = useMemo(() => {
-    const topAccounts = accounts.slice(0, 3);
     const dimensions = ['阅读量', '互动率', '分享率', '转化率', '涨粉数'];
+    const groupAccountsMap = new Map<string, string[]>();
+    accounts.forEach((acc) => {
+      const gIds = groupAccountsMap.get(acc.groupId) || [];
+      gIds.push(acc.id);
+      groupAccountsMap.set(acc.groupId, gIds);
+    });
 
     return dimensions.map((dim) => {
       const item: Record<string, string | number> = { dimension: dim };
-      topAccounts.forEach((acc, idx) => {
-        const accountArticles = publishedArticles.filter((a) => a.accountId === acc.id);
-        const accViews = accountArticles.reduce((s, a) => s + (a.views || 0), 0);
-        const accLikes = accountArticles.reduce((s, a) => s + (a.likes || 0), 0);
-        const accShares = accountArticles.reduce((s, a) => s + (a.shares || 0), 0);
-        const accConversions = accountArticles.reduce((s, a) => s + (a.conversions || 0), 0);
+      groups.forEach((group, idx) => {
+        const gAccountIds = groupAccountsMap.get(group.id) || [];
+        const gArticles = filteredArticles.filter((a) => gAccountIds.includes(a.accountId));
+        const gViews = gArticles.reduce((s, a) => s + (a.views || 0), 0);
+        const gLikes = gArticles.reduce((s, a) => s + (a.likes || 0), 0);
+        const gShares = gArticles.reduce((s, a) => s + (a.shares || 0), 0);
+        const gConversions = gArticles.reduce((s, a) => s + (a.conversions || 0), 0);
+        const gAccounts = accounts.filter((acc) => acc.groupId === group.id);
 
         let value = 0;
         switch (dim) {
           case '阅读量':
-            value = Math.min(100, (accViews / 100000) * 100);
+            value = Math.min(100, (gViews / 100000) * 100);
             break;
           case '互动率':
-            value = Math.min(100, accViews > 0 ? (accLikes / accViews) * 500 : 0);
+            value = Math.min(100, gViews > 0 ? (gLikes / gViews) * 500 : 0);
             break;
           case '分享率':
-            value = Math.min(100, accViews > 0 ? (accShares / accViews) * 800 : 0);
+            value = Math.min(100, gViews > 0 ? (gShares / gViews) * 800 : 0);
             break;
           case '转化率':
-            value = Math.min(100, accViews > 0 ? (accConversions / accViews) * 1500 : 0);
+            value = Math.min(100, gViews > 0 ? (gConversions / gViews) * 1500 : 0);
             break;
-          case '涨粉数':
-            value = Math.min(100, (acc.trend[acc.trend.length - 1] / 60000) * 100);
+          case '涨粉数': {
+            const totalTrend = gAccounts.reduce((s, acc) => s + (acc.trend[acc.trend.length - 1] || 0), 0);
+            value = Math.min(100, (totalTrend / (60000 * gAccounts.length || 60000)) * 100);
             break;
+          }
         }
-        item[`账号${idx + 1}`] = Math.round(value);
+        item[group.name] = Math.round(value);
       });
       return item;
     });
-  }, [accounts, publishedArticles]);
+  }, [groups, accounts, filteredArticles]);
 
   const areaChartData = useMemo(() => {
+    const days = timeRangeOptions.find((o) => o.value === timeRange)?.days ?? 30;
+    const today = new Date('2026-06-12');
     const data = [];
-    const today = new Date('2026-06-11');
-    for (let i = 29; i >= 0; i--) {
+    for (let i = days - 1; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateStr = formatDate(date);
-      const dayArticles = publishedArticles.filter(
+      const dayArticles = filteredArticles.filter(
         (a) => a.publishDate && a.publishDate === dateStr
       );
       const dayViews = dayArticles.reduce((s, a) => s + (a.views || 0), 0);
@@ -124,15 +174,61 @@ export default function Analytics() {
       });
     }
     return data;
-  }, [publishedArticles]);
+  }, [filteredArticles, timeRange]);
 
   const topArticles = useMemo(() => {
-    return [...publishedArticles]
+    return [...filteredArticles]
       .sort((a, b) => (b.views || 0) - (a.views || 0))
       .slice(0, 8);
-  }, [publishedArticles]);
+  }, [filteredArticles]);
 
-  const getAccountById = (id: string) => accounts.find((a) => a.id === id);
+  const getAccountById = useCallback(
+    (id: string) => accounts.find((a) => a.id === id),
+    [accounts]
+  );
+
+  const getRankValue = (article: typeof filteredArticles[0]) => {
+    switch (rankTab) {
+      case 'views': return article.views || 0;
+      case 'shares': return article.shares || 0;
+      case 'conversions': return article.conversions || 0;
+    }
+  };
+
+  const rankLabel: Record<RankTab, string> = {
+    views: '阅读',
+    shares: '分享',
+    conversions: '转化',
+  };
+
+  const showToast = useCallback((message: string) => {
+    setToast({ message, visible: true });
+    setTimeout(() => setToast({ message: '', visible: false }), 2000);
+  }, []);
+
+  const handleDepositToMaterial = useCallback(
+    (article: typeof filteredArticles[0]) => {
+      const quotes = article.goldenQuotes || [];
+      if (quotes.length === 0) {
+        showToast('该文章暂无金句可沉淀');
+        return;
+      }
+      quotes.forEach((quote) => {
+        addMaterial({
+          type: 'quote',
+          title: quote,
+          content: quote,
+          tags: [],
+          source: article.title,
+          author: getAccountById(article.accountId)?.name,
+        });
+      });
+      showToast(`已沉淀 ${quotes.length} 条金句到素材库`);
+    },
+    [addMaterial, getAccountById, showToast]
+  );
+
+  const maxRankValue = rankData.length > 0 ? getRankValue(rankData[0]) : 1;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -141,24 +237,97 @@ export default function Analytics() {
           <h1 className="font-serif text-2xl font-bold text-ink-900">效果分析</h1>
           <p className="text-sm text-ink-500 mt-1">洞察内容表现，优化创作策略</p>
         </div>
-        <div className="flex items-center gap-2 bg-white rounded-lg border border-ink-200 p-1">
-          {timeRangeOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setTimeRange(option.value)}
-              className={cn(
-                'px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center gap-1.5',
-                timeRange === option.value
-                  ? 'bg-brand-700 text-white shadow-sm'
-                  : 'text-ink-600 hover:bg-ink-50'
-              )}
-            >
-              {option.value === 'custom' && <Calendar className="w-3.5 h-3.5" />}
-              {option.label}
-            </button>
-          ))}
-        </div>
       </div>
+
+      <Card className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Filter className="w-4 h-4 text-ink-500" />
+          <span className="text-sm font-medium text-ink-700">交叉筛选</span>
+        </div>
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-ink-500 font-medium">账号分组</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedGroup('all')}
+                className={cn(
+                  'px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 border',
+                  selectedGroup === 'all'
+                    ? 'bg-copper-600 text-white border-copper-600 shadow-sm'
+                    : 'bg-copper-50 text-copper-700 border-copper-200 hover:bg-copper-100'
+                )}
+              >
+                全部
+              </button>
+              {groups.map((group) => (
+                <button
+                  key={group.id}
+                  onClick={() => setSelectedGroup(group.id)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 border',
+                    selectedGroup === group.id
+                      ? 'bg-copper-600 text-white border-copper-600 shadow-sm'
+                      : 'bg-copper-50 text-copper-700 border-copper-200 hover:bg-copper-100'
+                  )}
+                >
+                  {group.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-ink-500 font-medium">内容类型</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={cn(
+                  'px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 border',
+                  selectedCategory === 'all'
+                    ? 'bg-brand-700 text-white border-brand-700 shadow-sm'
+                    : 'bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100'
+                )}
+              >
+                全部
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 border',
+                    selectedCategory === cat
+                      ? 'bg-brand-700 text-white border-brand-700 shadow-sm'
+                      : 'bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100'
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-ink-500 font-medium">时间范围</span>
+            <div className="flex gap-2">
+              {timeRangeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setTimeRange(option.value)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 border',
+                    timeRange === option.value
+                      ? 'bg-ink-800 text-white border-ink-800 shadow-sm'
+                      : 'bg-ink-50 text-ink-600 border-ink-200 hover:bg-ink-100'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -192,12 +361,106 @@ export default function Analytics() {
         />
       </div>
 
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-copper-100 flex items-center justify-center">
+              <Trophy className="w-5 h-5 text-copper-600" />
+            </div>
+            <div>
+              <h3 className="font-serif text-lg font-semibold text-ink-800">内容排行</h3>
+              <p className="text-xs text-ink-500 mt-0.5">TOP 10 文章表现排名</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-ink-50 rounded-lg p-1">
+            {([
+              { key: 'views' as RankTab, label: '按阅读量' },
+              { key: 'shares' as RankTab, label: '按分享数' },
+              { key: 'conversions' as RankTab, label: '按转化数' },
+            ]).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setRankTab(tab.key)}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200',
+                  rankTab === tab.key
+                    ? 'bg-white text-brand-700 shadow-sm'
+                    : 'text-ink-500 hover:text-ink-700'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          {rankData.map((article, idx) => {
+            const value = getRankValue(article);
+            const account = getAccountById(article.accountId);
+            const barWidth = maxRankValue > 0 ? (value / maxRankValue) * 100 : 0;
+            return (
+              <div
+                key={article.id}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors',
+                  idx < 3 ? 'bg-copper-50/60' : 'hover:bg-ink-50'
+                )}
+              >
+                <span
+                  className={cn(
+                    'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                    idx === 0
+                      ? 'bg-copper-500 text-white'
+                      : idx === 1
+                        ? 'bg-copper-400 text-white'
+                        : idx === 2
+                          ? 'bg-copper-300 text-white'
+                          : 'bg-ink-100 text-ink-500'
+                  )}
+                >
+                  {idx + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-ink-800 truncate">{article.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-ink-400">{account?.name || '未知账号'}</span>
+                    <div className="flex-1 h-2 bg-ink-100 rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all duration-500',
+                          idx < 3 ? 'bg-copper-500' : 'bg-brand-400'
+                        )}
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 ml-3">
+                  <div className={cn(
+                    'text-sm font-bold',
+                    idx < 3 ? 'text-copper-600' : 'text-ink-700'
+                  )}>
+                    {formatNumber(value)}
+                  </div>
+                  <div className="text-xs text-ink-400">{rankLabel[rankTab]}</div>
+                </div>
+              </div>
+            );
+          })}
+          {rankData.length === 0 && (
+            <div className="py-8 text-center text-sm text-ink-400">暂无数据</div>
+          )}
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-serif text-lg font-semibold text-ink-800">阅读转化对比</h3>
-              <p className="text-xs text-ink-500 mt-0.5">各文章阅读量与转化数对比分析</p>
+              <p className="text-xs text-ink-500 mt-0.5">TOP6 文章阅读量与转化数对比分析</p>
             </div>
             <Badge variant="brand">TOP6 文章</Badge>
           </div>
@@ -247,10 +510,10 @@ export default function Analytics() {
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-serif text-lg font-semibold text-ink-800">账号对比</h3>
-              <p className="text-xs text-ink-500 mt-0.5">多维度账号表现雷达图</p>
+              <h3 className="font-serif text-lg font-semibold text-ink-800">分组对比</h3>
+              <p className="text-xs text-ink-500 mt-0.5">按分组多维度表现雷达图</p>
             </div>
-            <Badge variant="copper">核心账号</Badge>
+            <Badge variant="copper">分组维度</Badge>
           </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -266,30 +529,17 @@ export default function Analytics() {
                   tick={{ fill: '#A8A092', fontSize: 10 }}
                   axisLine={false}
                 />
-                <Radar
-                  name={accounts[0]?.name || '账号1'}
-                  dataKey="账号1"
-                  stroke={BRAND_COLORS.primary}
-                  fill={BRAND_COLORS.primary}
-                  fillOpacity={0.3}
-                  strokeWidth={2}
-                />
-                <Radar
-                  name={accounts[1]?.name || '账号2'}
-                  dataKey="账号2"
-                  stroke={BRAND_COLORS.copper}
-                  fill={BRAND_COLORS.copper}
-                  fillOpacity={0.25}
-                  strokeWidth={2}
-                />
-                <Radar
-                  name={accounts[2]?.name || '账号3'}
-                  dataKey="账号3"
-                  stroke={BRAND_COLORS.brandLight}
-                  fill={BRAND_COLORS.brandLight}
-                  fillOpacity={0.2}
-                  strokeWidth={2}
-                />
+                {groups.map((group, idx) => (
+                  <Radar
+                    key={group.id}
+                    name={group.name}
+                    dataKey={group.name}
+                    stroke={GROUP_COLORS[idx % GROUP_COLORS.length]}
+                    fill={GROUP_COLORS[idx % GROUP_COLORS.length]}
+                    fillOpacity={0.15 + idx * 0.05}
+                    strokeWidth={2}
+                  />
+                ))}
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 <Tooltip />
               </RadarChart>
@@ -302,7 +552,9 @@ export default function Analytics() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-serif text-lg font-semibold text-ink-800">发文趋势</h3>
-            <p className="text-xs text-ink-500 mt-0.5">近30天发文数量与阅读效果趋势</p>
+            <p className="text-xs text-ink-500 mt-0.5">
+              近{timeRangeOptions.find((o) => o.value === timeRange)?.days || 30}天发文数量与阅读效果趋势
+            </p>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -334,7 +586,7 @@ export default function Analytics() {
                 tick={{ fill: '#5C6670', fontSize: 11 }}
                 axisLine={{ stroke: '#CFC9BE' }}
                 tickLine={false}
-                interval={3}
+                interval={timeRange === '90d' ? 6 : timeRange === '30d' ? 3 : 1}
               />
               <YAxis
                 yAxisId="left"
@@ -453,16 +705,42 @@ export default function Analytics() {
                     </div>
                   </div>
 
-                  <button className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-copper-600 text-white font-medium rounded-lg transition-all duration-200 hover:bg-copper-700 active:bg-copper-800">
-                    <Repeat className="w-4 h-4" />
-                    复用内容
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => navigate('/draft', { state: { articleId: article.id } })}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-copper-600 text-white font-medium rounded-lg transition-all duration-200 hover:bg-copper-700 active:bg-copper-800"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      查看文章
+                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-all duration-200"
+                      >
+                        <Repeat className="w-3.5 h-3.5" />
+                        复用内容
+                      </button>
+                      <button
+                        onClick={() => handleDepositToMaterial(article)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-copper-700 bg-copper-50 hover:bg-copper-100 rounded-lg transition-all duration-200"
+                      >
+                        <BookmarkPlus className="w-3.5 h-3.5" />
+                        沉淀到素材
+                      </button>
+                    </div>
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
       </div>
+
+      {toast.visible && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 bg-ink-800 text-white text-sm rounded-lg shadow-lg animate-slide-up z-50">
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
