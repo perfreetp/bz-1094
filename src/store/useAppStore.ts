@@ -137,6 +137,17 @@ export const useAppStore = create<AppState>((set) => ({
       return { reviewComments: resolveReplies(state.reviewComments) };
     }),
 
+  toggleResolveComment: (commentId) =>
+    set((state) => {
+      const toggleReplies = (comments: ReviewComment[]): ReviewComment[] =>
+        comments.map((comment) => ({
+          ...comment,
+          ...(comment.id === commentId ? { resolved: !comment.resolved } : {}),
+          replies: comment.replies ? toggleReplies(comment.replies) : undefined,
+        }));
+      return { reviewComments: toggleReplies(state.reviewComments) };
+    }),
+
   retryPublish: (recordId) =>
     set((state) => ({
       publishRecords: state.publishRecords.map((record) =>
@@ -147,4 +158,29 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   setSelectedMaterialType: (type) => set({ selectedMaterialType: type }),
+
+  updateArticleContent: (articleId, content) =>
+    set((state) => ({
+      articles: state.articles.map((a) => (a.id === articleId ? { ...a, content } : a)),
+    })),
+
+  toggleMaterialTag: (materialId, tagId) =>
+    set((state) => {
+      const updatedTags = state.tags.map((t) => {
+        const material = state.materials.find((m) => m.id === materialId);
+        const hasTag = material?.tags.includes(tagId);
+        return hasTag ? { ...t, count: t.count - 1 } : { ...t, count: t.count + 1 };
+      });
+      return {
+        materials: state.materials.map((m) =>
+          m.id === materialId
+            ? {
+                ...m,
+                tags: m.tags.includes(tagId) ? m.tags.filter((t) => t !== tagId) : [...m.tags, tagId],
+              }
+            : m
+        ),
+        tags: updatedTags,
+      };
+    }),
 }));

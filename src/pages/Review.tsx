@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   AlertTriangle,
   CheckCircle,
@@ -58,15 +58,33 @@ const levelConfig = {
   low: { label: '低风险', color: 'brand', icon: Shield },
 };
 
+function getParagraphsFromContent(content: string): string[] {
+  if (!content) return articleContent;
+  const paragraphs = content.split(/[。！？\n]/).filter(p => p.trim().length > 0);
+  return paragraphs.length > 0 ? paragraphs : articleContent;
+}
+
 export default function Review() {
   const [activeTab, setActiveTab] = useState<ReviewTab>('brand');
   const [issues, setIssues] = useState<BrandIssue[]>(brandIssues);
   const [selectedArticleId, setSelectedArticleId] = useState<string>('art-11');
   const [newComment, setNewComment] = useState('');
   const [selectedPublishIds, setSelectedPublishIds] = useState<Set<string>>(new Set());
+  const [articleParagraphs, setArticleParagraphs] = useState<string[]>(articleContent);
 
-  const { reviewComments, publishRecords, articles, accounts, users, resolveComment, addReviewComment, retryPublish } =
-    useAppStore();
+  const {
+    reviewComments,
+    publishRecords,
+    articles,
+    accounts,
+    users,
+    tasks,
+    toggleResolveComment,
+    addReviewComment,
+    retryPublish,
+    updateArticleContent,
+    updateTaskStatus,
+  } = useAppStore();
 
   const articleComments = useMemo(
     () => reviewComments.filter((c) => c.articleId === selectedArticleId),
@@ -74,6 +92,15 @@ export default function Review() {
   );
 
   const currentArticle = useMemo(() => articles.find((a) => a.id === selectedArticleId), [articles, selectedArticleId]);
+
+  useEffect(() => {
+    if (currentArticle?.content) {
+      setArticleParagraphs(getParagraphsFromContent(currentArticle.content));
+    } else {
+      setArticleParagraphs(articleContent);
+    }
+    setIssues(brandIssues.map(i => ({ ...i, replaced: false })));
+  }, [selectedArticleId, currentArticle]);
 
   const failedRecords = useMemo(() => publishRecords.filter((r) => r.status === 'failed'), [publishRecords]);
   const pendingArticles = useMemo(() => articles.filter((a) => ['review', 'scheduled', 'writing'].includes(a.status)), [articles]);
@@ -89,11 +116,43 @@ export default function Review() {
   );
 
   const handleReplace = (issueId: string) => {
+    const issue = issues.find((i) => i.id === issueId);
+    if (!issue) return;
+
+    setArticleParagraphs((prev) => {
+      const newParagraphs = [...prev];
+      const paraIndex = issue.paragraph - 1;
+      if (newParagraphs[paraIndex]) {
+        newParagraphs[paraIndex] = newParagraphs[paraIndex].replace(
+          new RegExp(issue.word, 'g'),
+          issue.suggestion
+        );
+      }
+      updateArticleContent(selectedArticleId, newParagraphs.join('。'));
+      return newParagraphs;
+    });
+
     setIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, replaced: true } : i)));
   };
 
   const handleToggleResolve = (commentId: string) => {
-    resolveComment(commentId);
+    toggleResolveComment(commentId);
+  };
+
+  const handleBatchPublish = () => {
+    selectedPublishIds.forEach((articleId) => {
+      const task = tasks.find((t) => t.articleId === articleId);
+      if (task) {
+        updateTaskStatus(task.id, 'scheduled');
+      }
+    });
+    setSelectedPublishIds(new Set());
+  };
+
+  const handleRetryAll = () => {
+    failedRecords.forEach((record) => {
+      retryPublish(record.id);
+    });
   };
 
   const handleAddComment = () => {
@@ -186,7 +245,7 @@ export default function Review() {
                 </select>
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                {articleContent.map((para, idx) => {
+                {articleParagraphs.map((para, idx) => {
                   const paraIssues = issues.filter((i) => i.paragraph === idx + 1 && !i.replaced);
                   let highlightedPara = para;
                   paraIssues.forEach((issue) => {
@@ -303,7 +362,7 @@ export default function Review() {
                 </select>
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                {articleContent.map((para, idx) => (
+                {articleParagraphs.map((para, idx) => (
                   <div key={idx}>
                     <div className="flex gap-4">
                       <span className="text-xs font-mono text-ink-400 mt-1.5 w-10 flex-shrink-0">第{idx + 1}段</span>
@@ -471,6 +530,7 @@ export default function Review() {
                 <button
                   className="btn-primary"
                   disabled={selectedPublishIds.size === 0}
+                  onClick={handleBatchPublish}
                 >
                   <Send size={16} />
                   批量发布 ({selectedPublishIds.size})
@@ -622,7 +682,18 @@ export default function Review() {
                   <RefreshCcw size={16} className="text-copper-500" />
                   失败发布列表
                 </h3>
-                <span className="text-xs text-ink-500">{failedRecords.length} 条记录</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-500">{failedRecords.length} 条记录</span>
+                  {failedRecords.length > 0 && (
+                    <button
+                      onClick={handleRetryAll}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-copper-600 text-white rounded-lg hover:bg-copper-700 transition-colors"
+                    >
+                      <RefreshCcw size={14} />
+                      全部重试
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {failedRecords.length === 0 ? (
