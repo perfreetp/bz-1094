@@ -1,0 +1,741 @@
+import type { Article, Task, ReviewComment, PublishRecord } from '../types';
+
+export const articles: Article[] = [
+  {
+    id: 'art-1',
+    title: '2026年旗舰手机横评：谁才是真正的机皇？',
+    summary: '深度对比今年各大品牌旗舰机型，从性能、影像、续航、系统全方位实测，帮你选择最适合的手机。',
+    content: '今年的手机市场异常热闹，各大品牌纷纷推出自家旗舰产品。本文将从多个维度对市面上主流旗舰进行深度评测...',
+    accountId: 'acc-1',
+    category: '产品评测',
+    status: 'published',
+    priority: 'high',
+    assignee: 'user-3',
+    publishDate: '2026-06-08',
+    dueDate: '2026-06-07',
+    views: 86520,
+    likes: 4280,
+    shares: 1860,
+    conversions: 520,
+    goldenQuotes: [
+      '性能不是唯一标准，体验才是最终答案',
+      '影像系统的竞争已经从像素数量转向计算摄影'
+    ],
+    tags: ['tag-3', 'tag-7']
+  },
+  {
+    id: 'art-2',
+    title: 'AI时代的智能家居：从单品智能到全屋互联',
+    summary: '探讨智能家居行业的最新发展趋势，分析主流生态系统的优劣势，给出实用的全屋智能方案。',
+    content: '随着AI技术的快速发展，智能家居正在经历从单品智能到全屋互联的转变。消费者不再满足于单个设备的智能化...',
+    accountId: 'acc-3',
+    category: '行业洞察',
+    status: 'published',
+    priority: 'medium',
+    assignee: 'user-4',
+    publishDate: '2026-06-05',
+    dueDate: '2026-06-04',
+    views: 32180,
+    likes: 1560,
+    shares: 680,
+    conversions: 310,
+    goldenQuotes: [
+      '真正的智能是让科技消失在生活中',
+      '全屋智能的核心不是设备，而是场景体验'
+    ],
+    tags: ['tag-5', 'tag-1']
+  },
+  {
+    id: 'art-3',
+    title: '夏季护肤攻略：油皮如何安然度过三伏天',
+    summary: '针对油性肌肤在夏季遇到的各种问题，提供从清洁到防晒的完整护肤方案，附产品推荐清单。',
+    content: '夏天对于油皮来说简直是灾难，出油、脱妆、爆痘轮番上阵。今天就来聊聊油皮夏季护肤的正确打开方式...',
+    accountId: 'acc-5',
+    category: '护肤教程',
+    status: 'published',
+    priority: 'high',
+    assignee: 'user-3',
+    publishDate: '2026-06-10',
+    dueDate: '2026-06-09',
+    views: 58420,
+    likes: 3890,
+    shares: 2150,
+    conversions: 890,
+    goldenQuotes: [
+      '控油的关键不是过度清洁，而是水油平衡',
+      '防晒是所有护肤步骤的最后一步，也是最重要的一步'
+    ],
+    tags: ['tag-8', 'tag-3']
+  },
+  {
+    id: 'art-4',
+    title: '2026夏季彩妆趋势：裸感妆容回归自然',
+    summary: '解析今夏最火的彩妆趋势，教你打造清透自然的裸感妆容，附平价替代产品推荐。',
+    content: '今年夏天的彩妆趋势明显偏向自然清透，厚重的底妆已经out了。让我们看看如何打造时下最流行的裸感妆容...',
+    accountId: 'acc-6',
+    category: '彩妆教程',
+    status: 'published',
+    priority: 'medium',
+    assignee: 'user-3',
+    publishDate: '2026-06-09',
+    dueDate: '2026-06-08',
+    views: 28650,
+    likes: 2120,
+    shares: 980,
+    conversions: 450,
+    goldenQuotes: [
+      '最好的妆容是让人看不出你化了妆',
+      '彩妆的意义是放大你的美，而不是掩盖你的特点'
+    ],
+    tags: ['tag-8', 'tag-7', 'tag-3']
+  },
+  {
+    id: 'art-5',
+    title: '宝宝辅食添加全攻略：6-12月龄按月龄详解',
+    summary: '科学系统地讲解宝宝辅食添加的时间节点、食物选择、制作方法和注意事项，新手妈妈必看。',
+    content: '宝宝6个月左右就要开始添加辅食了，很多新手妈妈对此感到迷茫。今天我们按月龄详细讲解辅食添加的完整方案...',
+    accountId: 'acc-7',
+    category: '育儿知识',
+    status: 'published',
+    priority: 'high',
+    assignee: 'user-4',
+    publishDate: '2026-06-06',
+    dueDate: '2026-06-05',
+    views: 45280,
+    likes: 3560,
+    shares: 2890,
+    conversions: 720,
+    goldenQuotes: [
+      '辅食添加的原则是：由少到多、由稀到稠、由细到粗、由一种到多种',
+      '每个宝宝都是独特的，不要盲目攀比别人家孩子的进度'
+    ],
+    tags: ['tag-8', 'tag-4']
+  },
+  {
+    id: 'art-6',
+    title: '城市咖啡地图：8家私藏小众咖啡馆推荐',
+    summary: '精选8家藏在城市角落的精品咖啡馆，从环境、豆子、出品全方位测评，咖啡控必收藏。',
+    content: '今天给大家推荐几家我私藏已久的小众咖啡馆，没有网红店的喧嚣，只有用心做好每一杯咖啡的匠人精神...',
+    accountId: 'acc-9',
+    category: '探店推荐',
+    status: 'published',
+    priority: 'medium',
+    assignee: 'user-3',
+    publishDate: '2026-06-07',
+    dueDate: '2026-06-06',
+    views: 52160,
+    likes: 2890,
+    shares: 1560,
+    conversions: 420,
+    goldenQuotes: [
+      '好的咖啡馆是城市的第三空间',
+      '一杯好咖啡，值得你花时间慢慢品味'
+    ],
+    tags: ['tag-9', 'tag-3', 'tag-4']
+  },
+  {
+    id: 'art-7',
+    title: '夏季衣橱极简指南：15件单品搭出30套造型',
+    summary: '教你用最少的单品打造最多变的穿搭， capsule wardrobe概念深度解析，附完整搭配公式。',
+    content: '很多人总觉得衣橱里永远少一件衣服，其实是没有掌握搭配的核心逻辑。今天教你如何用15件基础单品搭出30套不重样的造型...',
+    accountId: 'acc-11',
+    category: '穿搭教程',
+    status: 'published',
+    priority: 'high',
+    assignee: 'user-3',
+    publishDate: '2026-06-04',
+    dueDate: '2026-06-03',
+    views: 41850,
+    likes: 2680,
+    shares: 1420,
+    conversions: 380,
+    goldenQuotes: [
+      '时尚的终极是less is more',
+      '投资一件好的基础款，胜过十件廉价的快时尚'
+    ],
+    tags: ['tag-8', 'tag-9']
+  },
+  {
+    id: 'art-8',
+    title: '2026年中高端笔记本选购指南',
+    summary: '从轻薄本到游戏本，覆盖不同使用场景的笔记本推荐，教你看懂参数不被坑。',
+    content: '又到了年中购物季，很多朋友在后台问笔记本怎么选。今天这篇指南覆盖从5000到20000价位的主流机型...',
+    accountId: 'acc-2',
+    category: '选购指南',
+    status: 'scheduled',
+    priority: 'high',
+    assignee: 'user-4',
+    publishDate: '2026-06-15',
+    dueDate: '2026-06-12',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [
+      '适合的才是最好的，不盲目追求顶级配置'
+    ],
+    tags: ['tag-3', 'tag-8', 'tag-2']
+  },
+  {
+    id: 'art-9',
+    title: '618美妆囤货攻略：这些真的值得买',
+    summary: '618大促在即，整理出真正值得囤货的美妆护肤单品，附凑单攻略和历史价格对比。',
+    content: '618来了，相信很多姐妹的购物车已经加满了。但哪些是真的值得囤，哪些又是营销陷阱呢？今天给大家好好盘一盘...',
+    accountId: 'acc-4',
+    category: '购物攻略',
+    status: 'scheduled',
+    priority: 'high',
+    assignee: 'user-3',
+    publishDate: '2026-06-14',
+    dueDate: '2026-06-11',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [
+      '不买立省百分之百，理性消费最重要'
+    ],
+    tags: ['tag-2', 'tag-3', 'tag-7']
+  },
+  {
+    id: 'art-10',
+    title: '预产期在夏天？这些待产包物品一定要准备',
+    summary: '针对夏季分娩的待产包清单，告诉你哪些是必备，哪些可以不用带，避免踩坑。',
+    content: '夏天生宝宝的妈妈们特别不容易，高温天气下很多物品的选择都需要特别注意。今天整理一份夏季待产包清单...',
+    accountId: 'acc-7',
+    category: '孕产知识',
+    status: 'scheduled',
+    priority: 'medium',
+    assignee: 'user-4',
+    publishDate: '2026-06-16',
+    dueDate: '2026-06-13',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-8']
+  },
+  {
+    id: 'art-11',
+    title: '夏日清爽饮品合集：10款高颜值特调教程',
+    summary: '学会这10款饮品，这个夏天不用再去奶茶店，在家就能做出颜值和味道双在线的特调。',
+    content: '夏天怎么能少得了好喝的饮品呢？今天教大家10款颜值高又好喝的夏日特调，做法都很简单...',
+    accountId: 'acc-10',
+    category: '饮品教程',
+    status: 'review',
+    priority: 'medium',
+    assignee: 'user-3',
+    publishDate: '2026-06-18',
+    dueDate: '2026-06-14',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-8', 'tag-3']
+  },
+  {
+    id: 'art-12',
+    title: 'TWS耳机深度横评：5款热门降噪耳机对比',
+    summary: '对市面上5款主流TWS降噪耳机进行全方位对比评测，从音质、降噪、续航到佩戴舒适度一一分析。',
+    content: 'TWS耳机市场近年来发展迅猛，降噪功能几乎成为标配。但各家的降噪表现究竟如何？我们对5款热门产品进行了深度横评...',
+    accountId: 'acc-2',
+    category: '产品评测',
+    status: 'review',
+    priority: 'high',
+    assignee: 'user-4',
+    publishDate: '2026-06-17',
+    dueDate: '2026-06-13',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-3', 'tag-10']
+  },
+  {
+    id: 'art-13',
+    title: '早C晚A进阶指南：如何建立A醇耐受',
+    summary: '详细讲解A醇的正确使用方法，从入门到进阶的完整耐受建立方案，附常见问题解答。',
+    content: '早C晚A的护肤理念已经深入人心，但很多人在使用A醇时会遇到刺激、爆皮等问题。今天详细说说如何正确建立A醇耐受...',
+    accountId: 'acc-5',
+    category: '护肤教程',
+    status: 'review',
+    priority: 'high',
+    assignee: 'user-3',
+    publishDate: '2026-06-19',
+    dueDate: '2026-06-15',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-8', 'tag-3']
+  },
+  {
+    id: 'art-14',
+    title: '小户型改造：40㎡也能拥有精致生活',
+    summary: '真实案例分享，看设计师如何将40平米的小户型改造得既实用又美观，附改造前后对比图。',
+    content: '今天分享一个非常棒的小户型改造案例，原始户型只有40平米，但改造后功能齐全，颜值爆表...',
+    accountId: 'acc-12',
+    category: '家居改造',
+    status: 'writing',
+    priority: 'medium',
+    assignee: 'user-4',
+    publishDate: '2026-06-20',
+    dueDate: '2026-06-16',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-9', 'tag-4']
+  },
+  {
+    id: 'art-15',
+    title: '职场新人穿搭指南：一周穿搭不重样',
+    summary: '专为职场新人打造的穿搭指南，教你如何用有限的预算打造专业又时尚的职场形象。',
+    content: '刚入职场的新人常常为穿搭烦恼，既要专业得体又不想太老气。今天给大家分享一周职场穿搭方案...',
+    accountId: 'acc-11',
+    category: '穿搭教程',
+    status: 'writing',
+    priority: 'medium',
+    assignee: 'user-3',
+    publishDate: '2026-06-21',
+    dueDate: '2026-06-17',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-8', 'tag-9']
+  },
+  {
+    id: 'art-16',
+    title: '儿童电子产品选购避坑指南',
+    summary: '家长必看！如何给孩子选择安全、实用又不伤眼的电子产品，附各年龄段推荐清单。',
+    content: '现在的孩子成长在数字时代，完全避免接触电子产品几乎不可能。作为家长，如何正确选择适合孩子的电子产品...',
+    accountId: 'acc-3',
+    category: '选购指南',
+    status: 'writing',
+    priority: 'high',
+    assignee: 'user-4',
+    publishDate: '2026-06-22',
+    dueDate: '2026-06-18',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-8', 'tag-3', 'tag-4']
+  },
+  {
+    id: 'art-17',
+    title: '国潮美妆品牌崛起：这些品牌真的值得买',
+    summary: '盘点近年来表现亮眼的国货美妆品牌，从产品力、性价比到品牌理念全面分析。',
+    content: '近年来国货美妆品牌强势崛起，很多产品在品质上已经不输国际大牌。今天就来盘点一下值得入手的国潮美妆品牌...',
+    accountId: 'acc-4',
+    category: '品牌分析',
+    status: 'draft',
+    priority: 'medium',
+    assignee: 'user-3',
+    publishDate: '2026-06-25',
+    dueDate: '2026-06-20',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-1', 'tag-3', 'tag-5']
+  },
+  {
+    id: 'art-18',
+    title: '新手烘焙入门：从零开始学做面包',
+    summary: '超详细的面包烘焙入门教程，从工具选择到揉面发酵，一步步教你做出松软的面包。',
+    content: '很多人觉得做面包很难，其实掌握了基本原理和步骤，在家也能做出好吃的面包。今天这篇教程专门给烘焙新手...',
+    accountId: 'acc-9',
+    category: '美食教程',
+    status: 'draft',
+    priority: 'low',
+    assignee: 'user-4',
+    publishDate: '2026-06-26',
+    dueDate: '2026-06-22',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-8', 'tag-4']
+  },
+  {
+    id: 'art-19',
+    title: '平板选购指南：iPad还是安卓平板？',
+    summary: '深度对比iPad和安卓平板的优劣势，根据不同使用场景给出具体的选购建议。',
+    content: '平板电脑市场选择越来越多，很多人纠结是选iPad还是安卓平板。今天我们从多个维度来详细对比...',
+    accountId: 'acc-1',
+    category: '选购指南',
+    status: 'draft',
+    priority: 'medium',
+    assignee: 'user-4',
+    publishDate: '2026-06-28',
+    dueDate: '2026-06-24',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-3', 'tag-8', 'tag-10']
+  },
+  {
+    id: 'art-20',
+    title: '防晒科普：SPF和PA到底是什么意思？',
+    summary: '用通俗易懂的语言讲解防晒的科学原理，教你看懂防晒霜参数，选择适合自己的防晒产品。',
+    content: '夏天到了，防晒成了大家最关心的话题。但是SPF50、PA++++这些参数你真的懂吗？今天给大家好好科普一下...',
+    accountId: 'acc-5',
+    category: '护肤科普',
+    status: 'draft',
+    priority: 'low',
+    assignee: 'user-3',
+    publishDate: '2026-06-30',
+    dueDate: '2026-06-26',
+    views: 0,
+    likes: 0,
+    shares: 0,
+    conversions: 0,
+    goldenQuotes: [],
+    tags: ['tag-8', 'tag-10']
+  },
+  {
+    id: 'art-21',
+    title: '2026春季新品口红合集：10支热门口红色号试色',
+    summary: '精选春季新品口红10支，从专柜到开架全覆盖，真实试色帮你选到最适合的那一支。',
+    content: '春季新品口红一波接一波，选择困难症都犯了。今天整理了10支热门新品的真实试色，黄皮友好的都帮你们挑出来了...',
+    accountId: 'acc-6',
+    category: '产品评测',
+    status: 'archived',
+    priority: 'medium',
+    assignee: 'user-3',
+    publishDate: '2026-04-15',
+    dueDate: '2026-04-12',
+    views: 38920,
+    likes: 2560,
+    shares: 1280,
+    conversions: 680,
+    goldenQuotes: [
+      '口红是女人最好的装饰品'
+    ],
+    tags: ['tag-3']
+  },
+  {
+    id: 'art-22',
+    title: '宝宝春季过敏怎么办？儿科医生这样说',
+    summary: '春季是儿童过敏高发期，本文请儿科医生解答关于宝宝过敏的常见问题和预防措施。',
+    content: '春天到了，很多宝宝开始出现打喷嚏、流鼻涕、皮肤痒等过敏症状。今天我们请来了儿科医生来给大家解答相关问题...',
+    accountId: 'acc-7',
+    category: '健康科普',
+    status: 'archived',
+    priority: 'high',
+    assignee: 'user-4',
+    publishDate: '2026-04-10',
+    dueDate: '2026-04-08',
+    views: 32580,
+    likes: 2180,
+    shares: 1890,
+    conversions: 520,
+    goldenQuotes: [
+      '预防大于治疗，过敏体质宝宝的护理要从日常做起'
+    ],
+    tags: ['tag-8', 'tag-4']
+  },
+  {
+    id: 'art-23',
+    title: '去年618我踩过的坑，今年你别再踩了',
+    summary: '复盘去年618的购物经验，哪些值得买，哪些是智商税，帮你今年省下真金白银。',
+    content: '去年618我冲动消费了不少东西，有些确实超值，有些买回来就后悔了。今天给大家复盘一下我去年踩过的坑...',
+    accountId: 'acc-4',
+    category: '购物攻略',
+    status: 'archived',
+    priority: 'medium',
+    assignee: 'user-3',
+    publishDate: '2025-06-01',
+    dueDate: '2025-05-28',
+    views: 62180,
+    likes: 3890,
+    shares: 2560,
+    conversions: 890,
+    goldenQuotes: [
+      '冲动消费是魔鬼，购物前先想想是不是真的需要'
+    ],
+    tags: ['tag-2', 'tag-9', 'tag-4']
+  },
+  {
+    id: 'art-24',
+    title: '2025年度最佳手机TOP10',
+    summary: '年终盘点，精选2025年度最值得购买的10款手机，覆盖不同价位和需求。',
+    content: '又到了年终盘点的时候，2025年手机市场精彩纷呈。今天给大家选出年度最值得购买的10款手机...',
+    accountId: 'acc-1',
+    category: '年度盘点',
+    status: 'archived',
+    priority: 'high',
+    assignee: 'user-4',
+    publishDate: '2025-12-25',
+    dueDate: '2025-12-20',
+    views: 125600,
+    likes: 6890,
+    shares: 3280,
+    conversions: 1560,
+    goldenQuotes: [
+      '好产品自己会说话，用户的选择就是最好的证明'
+    ],
+    tags: ['tag-10', 'tag-3', 'tag-9']
+  },
+  {
+    id: 'art-25',
+    title: '家居好物推荐：10件提升幸福感的小物件',
+    summary: '分享10件看似不起眼但能大幅提升生活幸福感的家居小物，价格都不贵但非常实用。',
+    content: '生活的幸福感往往来自一些小细节。今天给大家分享10件我用了就离不开的家居好物...',
+    accountId: 'acc-12',
+    category: '好物推荐',
+    status: 'archived',
+    priority: 'low',
+    assignee: 'user-3',
+    publishDate: '2026-03-20',
+    dueDate: '2026-03-18',
+    views: 28650,
+    likes: 1890,
+    shares: 980,
+    conversions: 420,
+    goldenQuotes: [
+      '热爱生活的人，生活也会热爱他'
+    ],
+    tags: ['tag-3', 'tag-4']
+  },
+  {
+    id: 'art-26',
+    title: '探店日记：这家开了20年的老店凭什么这么火',
+    summary: '探访一家开了20年的老牌餐厅，听听老板的创业故事，尝尝传承了两代人的味道。',
+    content: '今天带大家去一家开了20年的老店，店面不大，装修也不豪华，但每天都座无虚席...',
+    accountId: 'acc-9',
+    category: '探店推荐',
+    status: 'archived',
+    priority: 'low',
+    assignee: 'user-4',
+    publishDate: '2026-05-10',
+    dueDate: '2026-05-08',
+    views: 35280,
+    likes: 2150,
+    shares: 1260,
+    conversions: 280,
+    goldenQuotes: [
+      '美食的最高境界是用心'
+    ],
+    tags: ['tag-9', 'tag-4']
+  }
+];
+
+const articleStatusToTaskStatus: Record<string, Task['status']> = {
+  draft: 'todo',
+  writing: 'writing',
+  review: 'review',
+  scheduled: 'scheduled',
+  published: 'published',
+  archived: 'archived',
+};
+
+const taskStatusToProgress: Record<string, number> = {
+  todo: 10,
+  writing: 40,
+  review: 70,
+  scheduled: 90,
+  published: 100,
+  archived: 100
+};
+
+export const tasks: Task[] = articles.map(article => {
+  const taskStatus = articleStatusToTaskStatus[article.status] || 'todo';
+  return {
+    id: `task-${article.id}`,
+    articleId: article.id,
+    title: article.title,
+    status: taskStatus,
+    assignee: article.assignee || 'user-1',
+    dueDate: article.dueDate || '2026-06-30',
+    priority: article.priority,
+    progress: taskStatusToProgress[taskStatus] || 0
+  };
+});
+
+export const reviewComments: ReviewComment[] = [
+  {
+    id: 'rc-1',
+    articleId: 'art-11',
+    content: '整体结构不错，但建议在每个饮品教程中增加成品图片说明，读者会更有代入感。',
+    author: 'user-5',
+    authorAvatar: '👩‍🎨',
+    type: 'general',
+    resolved: false,
+    createdAt: '2026-06-10 09:30'
+  },
+  {
+    id: 'rc-2',
+    articleId: 'art-11',
+    content: '第3款饮品的糖浆用量建议减少10g，不然会太甜，不符合健康趋势。',
+    author: 'user-6',
+    authorAvatar: '👨‍🎨',
+    type: 'inline',
+    lineNumber: 28,
+    resolved: false,
+    createdAt: '2026-06-10 10:15',
+    replies: [
+      {
+        id: 'rc-2-r1',
+        articleId: 'art-11',
+        content: '已收到建议，我调整一下配方比例，同时增加低糖版本说明。',
+        author: 'user-3',
+        authorAvatar: '👩‍💻',
+        type: 'inline',
+        lineNumber: 28,
+        resolved: false,
+        createdAt: '2026-06-10 11:00'
+      }
+    ]
+  },
+  {
+    id: 'rc-3',
+    articleId: 'art-12',
+    content: '耳机对比参数表格建议增加"佩戴舒适度"维度的评分，这是用户选购时很看重的一点。',
+    author: 'user-5',
+    authorAvatar: '👩‍🎨',
+    type: 'general',
+    resolved: true,
+    createdAt: '2026-06-09 14:20'
+  },
+  {
+    id: 'rc-4',
+    articleId: 'art-12',
+    content: '文章中提及的竞品型号需要确认是否已上市，避免信息不准确。',
+    author: 'user-6',
+    authorAvatar: '👨‍🎨',
+    type: 'general',
+    resolved: false,
+    createdAt: '2026-06-09 15:45'
+  },
+  {
+    id: 'rc-5',
+    articleId: 'art-13',
+    content: '涉及医学建议的部分需要更加严谨，建议标注"本文仅供参考，具体请遵医嘱"。',
+    author: 'user-5',
+    authorAvatar: '👩‍🎨',
+    type: 'brand',
+    resolved: false,
+    createdAt: '2026-06-10 16:00'
+  },
+  {
+    id: 'rc-6',
+    articleId: 'art-13',
+    content: 'A醇耐受建立的周期建议从2周延长到4周，更符合大多数用户的实际皮肤状态。',
+    author: 'user-6',
+    authorAvatar: '👨‍🎨',
+    type: 'inline',
+    lineNumber: 45,
+    resolved: true,
+    createdAt: '2026-06-10 16:30'
+  },
+  {
+    id: 'rc-7',
+    articleId: 'art-8',
+    content: '开篇推荐语需要符合品牌调性，避免过于激进的表述。',
+    author: 'user-5',
+    authorAvatar: '👩‍🎨',
+    type: 'brand',
+    resolved: true,
+    createdAt: '2026-06-08 10:00'
+  }
+];
+
+export const publishRecords: PublishRecord[] = [
+  {
+    id: 'pr-1',
+    articleId: 'art-1',
+    articleTitle: '2026年旗舰手机横评：谁才是真正的机皇？',
+    accountId: 'acc-1',
+    status: 'success',
+    scheduledAt: '2026-06-08 08:00',
+    publishedAt: '2026-06-08 08:00',
+    retryCount: 0
+  },
+  {
+    id: 'pr-2',
+    articleId: 'art-3',
+    articleTitle: '夏季护肤攻略：油皮如何安然度过三伏天',
+    accountId: 'acc-5',
+    status: 'success',
+    scheduledAt: '2026-06-10 09:00',
+    publishedAt: '2026-06-10 09:00',
+    retryCount: 0
+  },
+  {
+    id: 'pr-3',
+    articleId: 'art-5',
+    articleTitle: '宝宝辅食添加全攻略：6-12月龄按月龄详解',
+    accountId: 'acc-7',
+    status: 'success',
+    scheduledAt: '2026-06-06 07:30',
+    publishedAt: '2026-06-06 07:30',
+    retryCount: 0
+  },
+  {
+    id: 'pr-4',
+    articleId: 'art-8',
+    articleTitle: '2026年中高端笔记本选购指南',
+    accountId: 'acc-2',
+    status: 'pending',
+    scheduledAt: '2026-06-15 08:00',
+    retryCount: 0
+  },
+  {
+    id: 'pr-5',
+    articleId: 'art-9',
+    articleTitle: '618美妆囤货攻略：这些真的值得买',
+    accountId: 'acc-4',
+    status: 'pending',
+    scheduledAt: '2026-06-14 10:00',
+    retryCount: 0
+  },
+  {
+    id: 'pr-6',
+    articleId: 'art-7',
+    articleTitle: '夏季衣橱极简指南：15件单品搭出30套造型',
+    accountId: 'acc-11',
+    status: 'failed',
+    scheduledAt: '2026-06-04 08:00',
+    publishedAt: '2026-06-04 08:05',
+    retryCount: 1,
+    errorMessage: '账号接口超时，请检查网络连接后重试'
+  },
+  {
+    id: 'pr-7',
+    articleId: 'art-2',
+    articleTitle: 'AI时代的智能家居：从单品智能到全屋互联',
+    accountId: 'acc-3',
+    status: 'success',
+    scheduledAt: '2026-06-05 09:00',
+    publishedAt: '2026-06-05 09:00',
+    retryCount: 0
+  },
+  {
+    id: 'pr-8',
+    articleId: 'art-6',
+    articleTitle: '城市咖啡地图：8家私藏小众咖啡馆推荐',
+    accountId: 'acc-9',
+    status: 'failed',
+    scheduledAt: '2026-06-07 11:00',
+    retryCount: 2,
+    errorMessage: '内容包含敏感词，请审核后重新发布'
+  }
+];
+
+export const articlesById: Record<string, Article> = Object.fromEntries(
+  articles.map(article => [article.id, article])
+);
