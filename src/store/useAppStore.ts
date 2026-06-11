@@ -44,8 +44,11 @@ interface AppState {
   addMaterialTag: (materialId: string, tagId: string) => void;
   addReviewComment: (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
   resolveComment: (commentId: string) => void;
+  toggleResolveComment: (commentId: string) => void;
   retryPublish: (recordId: string) => void;
   setSelectedMaterialType: (type: MaterialType | 'all') => void;
+  updateArticleContent: (articleId: string, content: string) => void;
+  toggleMaterialTag: (materialId: string, tagId: string) => void;
 }
 
 const statusProgressMap: Record<string, number> = {
